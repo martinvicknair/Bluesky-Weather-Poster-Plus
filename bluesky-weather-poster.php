@@ -2,7 +2,7 @@
 /*
 Plugin Name: Bluesky Weather Poster
 Description: Posts weather updates from clientraw.txt to Bluesky social network
-Version: 1.0
+Version: 1.1a
 Author: Marcus Hazel-McGown - MM0ZIF
 Homepage: https://mm0zif.radio - Contact: marcus@mm0zif.radio 
 */
@@ -31,6 +31,18 @@ class BlueskyWeatherPosterPlugin {
         add_action('admin_init', [$this, 'register_settings']);
         add_action('bluesky_weather_post_event', [$this, 'post_weather_update']);
         add_action('wp_ajax_test_bluesky_post', [$this, 'post_weather_update']);
+        add_filter('cron_schedules', [$this, 'setup_custom_schedule']);
+    }
+
+    public function setup_custom_schedule($schedules) {
+        $post_frequency = get_option('post_frequency', '1');
+        
+        $schedules['weather_custom'] = array(
+            'interval' => $post_frequency * HOUR_IN_SECONDS,
+            'display' => sprintf('Every %d hours', $post_frequency)
+        );
+        
+        return $schedules;
     }
 
     public function add_admin_menu() {
@@ -49,6 +61,11 @@ class BlueskyWeatherPosterPlugin {
         register_setting('bluesky_weather_poster_options', 'clientraw_url');
         register_setting('bluesky_weather_poster_options', 'weather_live_url');
         register_setting('bluesky_weather_poster_options', 'post_frequency');
+
+        add_action('update_option_post_frequency', function($old_value, $new_value) {
+            wp_clear_scheduled_hook('bluesky_weather_post_event');
+            wp_schedule_event(time(), 'weather_custom', 'bluesky_weather_post_event');
+        }, 10, 2);
 
         add_settings_section(
             'bluesky_weather_poster_main',
@@ -202,9 +219,8 @@ class BlueskyWeatherPosterPlugin {
     }
 
     public function activate() {
-        if (!wp_next_scheduled('bluesky_weather_post_event')) {
-            wp_schedule_event(time(), 'hourly', 'bluesky_weather_post_event');
-        }
+        wp_clear_scheduled_hook('bluesky_weather_post_event');
+        wp_schedule_event(time(), 'weather_custom', 'bluesky_weather_post_event');
     }
 
     public function deactivate() {
