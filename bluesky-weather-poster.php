@@ -1,4 +1,4 @@
-<?php
+t<?php
 /*
 Plugin Name: Bluesky Weather Poster
 Description: Posts weather updates from clientraw.txt to Bluesky social network
@@ -48,7 +48,7 @@ class BlueskyWeatherPosterPlugin {
     public function add_admin_menu() {
         add_options_page(
             'Bluesky Weather Poster Settings',
-            'Bluesky Poster',
+            'Bluesky Weather Poster',
             'manage_options',
             'bluesky-weather-poster',
             [$this, 'settings_page']
