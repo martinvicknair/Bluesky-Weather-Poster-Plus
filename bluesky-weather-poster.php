@@ -1,10 +1,11 @@
 t<?php
 /*
-Plugin Name: Bluesky Weather Poster (Enhanced)
-Description: Fork of the original plugin to support both Metric and US Standard units.
+Plugin Name: Bluesky Weather Poster Plus
+Plugin URI: https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus
+Description: Fork of the original plugin to support both Metric and US Standard units, and other enhancements.
 Version: 1.1b
-Author: Martin Vicknair
-Original Author: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
+Author: Martin Vicknair - https://github.com/martinvicknair
+Forked from: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
 */
 
 // Prevent direct access
@@ -47,8 +48,8 @@ class BlueskyWeatherPosterPlugin {
 
     public function add_admin_menu() {
         add_options_page(
-            'Bluesky Weather Poster Settings',
-            'Bluesky Weather Poster',
+            'Bluesky Weather Poster Plus Settings',
+            'Bluesky Weather Poster Plus',
             'manage_options',
             'bluesky-weather-poster',
             [$this, 'settings_page']
