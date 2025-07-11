@@ -1,6 +1,8 @@
 # Bluesky Weather Poster WordPress Plugin
 
-A WordPress plugin that automatically posts weather updates from clientraw.txt to Bluesky social network. Written by Marcus Hazel-McGown - MM0ZIF owner of https://mm0zif.radio contact: marcus@havenswell.com
+A WordPress plugin that automatically posts weather updates from clientraw.txt to Bluesky social network. 
+
+Forked from the original written by Marcus Hazel-McGown - MM0ZIF owner of https://mm0zif.radio contact: marcus@havenswell.com
 
 ## Features
 
