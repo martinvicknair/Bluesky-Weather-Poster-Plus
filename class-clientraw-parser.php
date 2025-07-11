@@ -7,7 +7,7 @@ class ClientrawParser {
         $this->data = file_get_contents($clientrawUrl);
         if ($this->data === false) {
             throw new RuntimeException("Could not fetch clientraw.txt");
-            } */
+            }
         $this->data = explode(' ', $this->data);
     }
 
