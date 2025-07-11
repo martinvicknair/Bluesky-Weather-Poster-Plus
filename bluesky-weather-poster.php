@@ -1,4 +1,4 @@
-t<?php
+<?php
 /*
 Plugin Name: Bluesky Weather Poster Plus
 Plugin URI: https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus
