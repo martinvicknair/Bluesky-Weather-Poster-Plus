@@ -1,10 +1,10 @@
 t<?php
 /*
-Plugin Name: Bluesky Weather Poster
-Description: Posts weather updates from clientraw.txt to Bluesky social network
-Version: 1.1a
-Author: Marcus Hazel-McGown - MM0ZIF
-Homepage: https://mm0zif.radio - Contact: marcus@mm0zif.radio 
+Plugin Name: Bluesky Weather Poster (Enhanced)
+Description: Fork of the original plugin to support both Metric and US Standard units.
+Version: 1.1b
+Author: Martin Vicknair
+Original Author: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
 */
 
 // Prevent direct access
