@@ -1,6 +1,6 @@
 # Bluesky Weather Poster PLUS WordPress Plugin
 
-<img src="/bwpp772x515.png" alt="Bluesky Weather Poster PLUS WordPress Plugin logo"/>
+<img src="/banner-772x250.png" alt="Bluesky Weather Poster PLUS WordPress Plugin logo"/>
 
 A WordPress plugin that automatically posts weather updates from clientraw.txt to Bluesky social network. 
 
