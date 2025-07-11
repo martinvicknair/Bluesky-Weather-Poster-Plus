@@ -2,7 +2,7 @@
 /*
 Plugin Name: Bluesky Weather Poster Plus
 Plugin URI: https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus
-Description: Fork of the original plugin to support both Metric and US Standard units, and other enhancements.
+Description: A WordPress plugin to post weather updates to Bluesky using clientraw.txt data. Forked from Marcus Hazel-McGown's Bluesky Weather Poster.
 Version: 1.1b
 Author: Martin Vicknair - https://github.com/martinvicknair
 Forked from: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
