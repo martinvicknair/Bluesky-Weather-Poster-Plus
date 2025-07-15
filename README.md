@@ -56,6 +56,10 @@ A free WordPress plugin that automatically posts weather updates from clientraw.
 
 For support or feature requests, please use the GitHub issues page.
 
+## Screenshot Admin Options
+
+![Admin Options Screenshot](/assets/admin-options.png)
+
 ## License
 
 GPL v2 or later

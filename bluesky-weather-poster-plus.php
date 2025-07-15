@@ -4,7 +4,7 @@ Plugin Name: Bluesky Weather Poster Plus
 Description: Automatically posts weather updates from clientraw.txt to Bluesky social network, including clickable station URL, hashtags, and optional embedded webcam image.
 Version: 1.5.0
 Author: Martin Vicknair - https://github.com/martinvicknair
-Based on the original work of: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
+This plugin is a fork of [Bluesky Weather Poster](https://github.com/TheLich2112/bluesky-weather-poster) by Marcus Hazel-McGown, originally licensed under the GPL v2 or later.
 */
 
 if (!defined('ABSPATH')) exit;
