@@ -33,7 +33,7 @@ A free WordPress plugin that automatically posts weather updates from clientraw.
 
 ## Installation
 
-1. Download the plugin [ZIP] file(https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus/archive/refs/heads/main.zip)
+1. Download the plugin [ZIP](https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus/archive/refs/heads/main.zip) file
 2. Upload the bluesky-weather-poster folder to your /wp-content/plugins/ directory
 3. Activate the plugin through the 'Plugins' menu in WordPress
 4. Go to Settings > Bluesky Poster to configure
