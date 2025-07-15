@@ -1,73 +1,40 @@
-
 <?php
-class ClientrawParser {
+class Clientraw_Parser {
     private $data;
 
     public function __construct(string $clientrawUrl) {
-        $this->data = file_get_contents($clientrawUrl);
+        $this->data = @file_get_contents($clientrawUrl);
         if ($this->data === false) {
             throw new RuntimeException("Could not fetch clientraw.txt");
-            }
+        }
         $this->data = explode(' ', $this->data);
     }
 
-    public function formatWeatherUpdate(): string {
-        $tempC = $this->getTemperature();
-        $windKmh = $this->getWindSpeed();
-        $pressureHpa = $this->getPressure();
-        $rainMm = $this->getRainToday();
+    /**
+     * Returns an associative array of all key weather fields, for plugin formatting
+     */
+    public function get_weather_data() {
+        return [
+            // Main
+            'temperature'      => isset($this->data[4])  ? floatval($this->data[4])  : null,
+            'wind_direction'   => isset($this->data[3])  ? floatval($this->data[3])  : null,
+            'wind_speed'       => isset($this->data[2])  ? floatval($this->data[2])  : null, // current windspeed (knots)
+            'humidity'         => isset($this->data[5])  ? intval($this->data[5])    : null,
+            'pressure'         => isset($this->data[6])  ? floatval($this->data[6])  : null, // hPa
+            'rain_today'       => isset($this->data[7])  ? floatval($this->data[7])  : null, // mm
 
-        $tempF = is_numeric($tempC) ? round(($tempC * 9 / 5) + 32, 1) : 'N/A';
-        $windMph = is_numeric($windKmh) ? round($windKmh * 0.621371, 1) : 'N/A';
-        $pressureInHg = is_numeric($pressureHpa) ? round($pressureHpa * 0.02953, 2) : 'N/A';
-        $rainInches = is_numeric($rainMm) ? round($rainMm * 0.0393701, 2) : 'N/A';
+            // Temperature & Feel
+            'windchill'        => isset($this->data[44]) ? floatval($this->data[44]) : null, // °C
+            'humidex'          => isset($this->data[45]) ? floatval($this->data[45]) : null, // °C
+            'max_temp'         => isset($this->data[46]) ? floatval($this->data[46]) : null, // °C
+            'min_temp'         => isset($this->data[47]) ? floatval($this->data[47]) : null, // °C
+            'dew_point'        => isset($this->data[72]) ? floatval($this->data[72]) : null, // °C
 
-        // === Metric Units Output ===
-        $metric = sprintf(
-            "Metric: %s°C, Wind %s %s km/h, Humidity %s%%, Pressure %s hPa, Rain today %s mm",
-            $tempC,
-            $this->getWindDirection(),
-            $windKmh,
-            $this->getHumidity(),
-            $pressureHpa,
-            $rainMm
-        );
+            // Wind
+            'max_gust'         => isset($this->data[71]) ? floatval($this->data[71]) : null, // knots
 
-        // === US Standard Units Output ===
-        $us = sprintf(
-            "US: %s°F, Wind %s %s mph, Humidity %s%%, Pressure %s inHg, Rain today %s in",
-            $tempF,
-            $this->getWindDirection(),
-            $windMph,
-            $this->getHumidity(),
-            $pressureInHg,
-            $rainInches
-        );
-
-        // Return both (comment one out if needed)
-        return $metric . "\n" . $us;
-        // return $metric;
-        // return $us;
-    }
-
-    private function getTemperature(): string {
-        return $this->data[4] ?? 'N/A';
-    }
-
-    private function getWindSpeed(): string {
-        return $this->data[1] ?? 'N/A';
-    }
-
-    
-    private function getWindDirection(): string {
-        $deg = $this->data[3] ?? null;
-        if (!is_numeric($deg)) return 'N/A';
-
-        $directions = [
-            "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+            // Text
+            'weather_desc'     => isset($this->data[49]) ? trim($this->data[49])     : null,
         ];
-        $index = (int) (($deg + 11.25) / 22.5) % 16;
-        return $directions[$index];
     }
-    
+}
