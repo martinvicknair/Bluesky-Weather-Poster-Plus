@@ -44,5 +44,5 @@ class WPB_Clientraw_Parser {
 		return $dirs[ ( (int) round( $deg / 22.5 ) ) % 16 ];
 	}
 }
-*// End of class WPB_Clientraw_Parser
-*// This class is used to parse the clientraw.txt file from a weather station
+// End of class WPB_Clientraw_Parser
+// This class is used to parse the clientraw.txt file from a weather station
