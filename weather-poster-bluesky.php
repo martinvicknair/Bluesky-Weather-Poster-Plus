@@ -166,54 +166,6 @@ function wpb_get_remote_file_last_modified( $url ) {
 }
 
 /* --------------------------------------------------------------------------
- * PREVIEW / TEST-POST HANDLER  (safe result formatting)
- * ------------------------------------------------------------------------*/
-function wpb_get_test_post_preview_and_response( &$prev, &$resp, &$class, &$warn, $force = false ) {
-
-	$prev = $resp = '';
-	$class = 'notice-info';
-	$warn  = '';
-
-	$url = get_option( 'wpb_clientraw_url' );
-	$freq = (int) get_option( 'wpb_frequency', 1 );
-	$max  = $freq * 3600;
-	$lm   = wpb_get_remote_file_last_modified( $url );
-	$now  = time();
-
-	if ( ! $force && $lm && ( $now - $lm ) > $max ) {
-		$warn  = 'clientraw.txt older than interval.';
-		$class = 'notice-warning';
-		return false;
-	}
-
-	try {
-		$p = new WPB_Clientraw_Parser();
-		$d = $p->parse( $url );
-		if ( ! $d ) { throw new Exception( 'Parse error.' ); }
-
-		$post_struct = wpb_format_weather_output_with_facets( $d, get_option( 'wpb_station_url' ) );
-		$prev        = $post_struct['text'];
-		$results     = wpb_post_to_bluesky_accounts( $post_struct );
-
-		/* safe stringify */
-		if ( is_array( $results ) ) {
-			foreach ( $results as $acc => $r ) {
-				$resp .= $acc . ': ' . ( $r === true ? 'Success!' : $r ) . "\n";
-			}
-		} else {
-			$resp = ( $results === true || $results === null ) ? 'Success!' : (string) $results;
-		}
-		$class = 'notice-success';
-		return true;
-
-	} catch ( Exception $e ) {
-		$resp  = $e->getMessage();
-		$class = 'notice-error';
-		return false;
-	}
-}
-
-/* --------------------------------------------------------------------------
  * POST TO BOTH ACCOUNTS (inline image capable)
  * ------------------------------------------------------------------------*/
 function wpb_post_to_bluesky_accounts( $post_struct ) {
