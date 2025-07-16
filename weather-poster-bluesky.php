@@ -166,41 +166,6 @@ function wpb_get_remote_file_last_modified( $url ) {
 }
 
 /* --------------------------------------------------------------------------
- * POST TO BOTH ACCOUNTS (inline image capable)
- * ------------------------------------------------------------------------*/
-function wpb_post_to_bluesky_accounts( $post_struct ) {
-
-	$u1  = get_option( 'wpb_bluesky_username' );
-	$p1  = get_option( 'wpb_bluesky_app_password' );
-	$u2  = get_option( 'wpb_bluesky_username2' );
-	$p2  = get_option( 'wpb_bluesky_app_password2' );
-	$en2 = get_option( 'wpb_bluesky_enable_second', '' );
-
-	$settings = get_option( 'wpb_settings' );
-	if ( ! is_array( $settings ) ) { $settings = []; }
-	$backup = $settings;
-
-	$out = [];
-
-	if ( $u1 && $p1 ) {
-		$settings['wpb_bluesky_username'] = $u1;
-		$settings['wpb_bluesky_password'] = $p1;
-		update_option( 'wpb_settings', $settings );
-		$out['Account 1'] = ( new WPB_Bluesky_Poster() )->post_struct_to_bluesky( $post_struct, true );
-	}
-
-	if ( 'on' === $en2 && $u2 && $p2 ) {
-		$settings['wpb_bluesky_username'] = $u2;
-		$settings['wpb_bluesky_password'] = $p2;
-		update_option( 'wpb_settings', $settings );
-		$out['Account 2'] = ( new WPB_Bluesky_Poster() )->post_struct_to_bluesky( $post_struct, true );
-	}
-
-	update_option( 'wpb_settings', $backup );
-	return $out;
-}
-
-/* --------------------------------------------------------------------------
  * CRON SCHEDULING  (identical logic, re-registered for safety)
  * ------------------------------------------------------------------------*/
 function wpb_schedule_event() {
