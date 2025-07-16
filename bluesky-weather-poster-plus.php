@@ -2,9 +2,9 @@
 /*
 Plugin Name: Bluesky Weather Poster Plus
 Description: Automatically posts weather updates from clientraw.txt to Bluesky social network, including clickable station URL, hashtags, and optional embedded webcam image.
-Version: 1.5.0
+Version: 0.1.0
 Author: Martin Vicknair - https://github.com/martinvicknair
-Based on the original work of: Marcus Hazel-McGown - https://github.com/TheLich2112/bluesky-weather-poster
+This plugin is a fork of [Bluesky Weather Poster](https://github.com/TheLich2112/bluesky-weather-poster) by Marcus Hazel-McGown, originally licensed under the GPL v2 or later.
 */
 
 if (!defined('ABSPATH')) exit;
@@ -12,7 +12,8 @@ if (!defined('ABSPATH')) exit;
 require_once plugin_dir_path(__FILE__) . 'class-clientraw-parser.php';
 require_once plugin_dir_path(__FILE__) . 'class-bluesky-poster.php';
 
-function bwp_register_settings() {
+function bwp_register_settings()
+{
     register_setting('bwp_settings_group', 'bwp_bluesky_username');
     register_setting('bwp_settings_group', 'bwp_bluesky_app_password');
     register_setting('bwp_settings_group', 'bwp_bluesky_enable_second');
@@ -36,7 +37,8 @@ function bwp_register_settings() {
 }
 add_action('admin_init', 'bwp_register_settings');
 
-function bwp_get_field_option_keys() {
+function bwp_get_field_option_keys()
+{
     return [
         'bwp_include_temperature',
         'bwp_include_windchill',
@@ -54,7 +56,8 @@ function bwp_get_field_option_keys() {
     ];
 }
 
-function bwp_get_next_scheduled_post_time() {
+function bwp_get_next_scheduled_post_time()
+{
     $next = wp_next_scheduled('bwp_cron_event');
     if (!$next) {
         return "Not scheduled.";
@@ -70,10 +73,11 @@ function bwp_get_next_scheduled_post_time() {
     }
 }
 
-function bwp_add_settings_page() {
+function bwp_add_settings_page()
+{
     add_options_page(
         'Bluesky Weather Poster Plus',
-        'Bluesky Poster',
+        'Bluesky Weather Poster Plus',
         'manage_options',
         'bluesky-weather-poster-plus',
         'bwp_render_settings_page'
@@ -81,7 +85,8 @@ function bwp_add_settings_page() {
 }
 add_action('admin_menu', 'bwp_add_settings_page');
 
-function bwp_render_settings_page() {
+function bwp_render_settings_page()
+{
     $bwp_units = get_option('bwp_units', 'both');
     $bwp_post_prefix = get_option('bwp_post_prefix', 'Weather Update');
     $bwp_hashtags = get_option('bwp_hashtags', '');
@@ -109,7 +114,7 @@ function bwp_render_settings_page() {
     $enable_second = get_option('bwp_bluesky_enable_second', '');
     $second_checked = ($enable_second === 'on');
 
-    ?>
+?>
     <div class="wrap">
         <h1>Bluesky Weather Poster Plus Settings</h1>
         <form method="post" action="options.php" id="bwp-settings-form">
@@ -152,7 +157,7 @@ function bwp_render_settings_page() {
                 <tr valign="top">
                     <th scope="row"><label for="bwp_station_display_text">Station Link Display Text</label></th>
                     <td><input type="text" name="bwp_station_display_text" value="<?php echo esc_attr($bwp_station_display_text); ?>" class="regular-text" />
-                    <p class="description">Text shown for your station link (e.g. "Live Station").</p>
+                        <p class="description">Text shown for your station link (e.g. "Live Station").</p>
                     </td>
                 </tr>
                 <tr valign="top">
@@ -184,13 +189,13 @@ function bwp_render_settings_page() {
                         <label>
                             Post at (hour:minute):
                             <select name="bwp_first_post_hour" id="bwp_first_post_hour">
-                                <?php for ($h=0; $h<24; $h++) {
+                                <?php for ($h = 0; $h < 24; $h++) {
                                     printf('<option value="%d"%s>%02d</option>', $h, selected($bwp_first_post_hour, $h, false), $h);
                                 } ?>
                             </select>
                             :
                             <select name="bwp_first_post_minute" id="bwp_first_post_minute">
-                                <?php for ($m=0; $m<60; $m++) {
+                                <?php for ($m = 0; $m < 60; $m++) {
                                     printf('<option value="%d"%s>%02d</option>', $m, selected($bwp_first_post_minute, $m, false), $m);
                                 } ?>
                             </select>
@@ -258,7 +263,7 @@ function bwp_render_settings_page() {
         <form method="post">
             <?php submit_button('Send Test Post', 'secondary', 'bwp_test_post'); ?>
         </form>
-        <?php if($bwp_file_age_warning): ?>
+        <?php if ($bwp_file_age_warning): ?>
             <div class="notice notice-warning">
                 <strong>File Age Warning:</strong>
                 <pre style="white-space: pre-wrap; word-break: break-word;"><?php echo esc_html($bwp_file_age_warning); ?></pre>
@@ -279,77 +284,79 @@ function bwp_render_settings_page() {
         </div>
     </div>
     <script>
-    jQuery(document).ready(function($) {
-        function updateCharCount() {
-            var data = {
-                action: 'bwp_estimate_char_count',
-                post_prefix: $('#bwp_post_prefix').val(),
-                units: $('#bwp_units').val(),
-                hashtags: $('#bwp_hashtags').val(),
-                station_display_text: $('#bwp_station_display_text').val(),
-                webcam_image_url: $('#bwp_webcam_image_url').val(),
-                webcam_display_text: $('#bwp_webcam_display_text').val()
-            };
-            $('input[type=checkbox][name^="bwp_include_"]').each(function() {
-                data[$(this).attr('name')] = $(this).is(':checked') ? 'on' : '';
-            });
-            $.post(ajaxurl, data, function(resp) {
-                if (resp.success) {
-                    var count = resp.data.count;
-                    var limit = 300;
-                    var color = (count > limit) ? '#b00' : '#222';
-                    $('#bwp-char-count-display').html(
-                        '<strong>Estimated post character count:</strong> ' +
-                        count + ' / ' + limit +
-                        (count > limit
-                            ? '<br><span style="color:#b00;">Warning: This may exceed Bluesky’s 300 character limit and may be truncated or rejected.</span>'
-                            : ''
-                        )
-                    ).css('color', color);
-                }
-            });
-        }
-        function updateLivePreview() {
-            var data = {
-                action: 'bwp_live_post_preview',
-                post_prefix: $('#bwp_post_prefix').val(),
-                units: $('#bwp_units').val(),
-                hashtags: $('#bwp_hashtags').val(),
-                station_display_text: $('#bwp_station_display_text').val(),
-                webcam_image_url: $('#bwp_webcam_image_url').val(),
-                webcam_display_text: $('#bwp_webcam_display_text').val()
-            };
-            $('input[type=checkbox][name^="bwp_include_"]').each(function() {
-                data[$(this).attr('name')] = $(this).is(':checked') ? 'on' : '';
-            });
-            $.post(ajaxurl, data, function(resp) {
-                if (resp.success) {
-                    $('#bwp-live-preview').text(resp.data.preview);
-                } else {
+        jQuery(document).ready(function($) {
+            function updateCharCount() {
+                var data = {
+                    action: 'bwp_estimate_char_count',
+                    post_prefix: $('#bwp_post_prefix').val(),
+                    units: $('#bwp_units').val(),
+                    hashtags: $('#bwp_hashtags').val(),
+                    station_display_text: $('#bwp_station_display_text').val(),
+                    webcam_image_url: $('#bwp_webcam_image_url').val(),
+                    webcam_display_text: $('#bwp_webcam_display_text').val()
+                };
+                $('input[type=checkbox][name^="bwp_include_"]').each(function() {
+                    data[$(this).attr('name')] = $(this).is(':checked') ? 'on' : '';
+                });
+                $.post(ajaxurl, data, function(resp) {
+                    if (resp.success) {
+                        var count = resp.data.count;
+                        var limit = 300;
+                        var color = (count > limit) ? '#b00' : '#222';
+                        $('#bwp-char-count-display').html(
+                            '<strong>Estimated post character count:</strong> ' +
+                            count + ' / ' + limit +
+                            (count > limit ?
+                                '<br><span style="color:#b00;">Warning: This may exceed Bluesky’s 300 character limit and may be truncated or rejected.</span>' :
+                                ''
+                            )
+                        ).css('color', color);
+                    }
+                });
+            }
+
+            function updateLivePreview() {
+                var data = {
+                    action: 'bwp_live_post_preview',
+                    post_prefix: $('#bwp_post_prefix').val(),
+                    units: $('#bwp_units').val(),
+                    hashtags: $('#bwp_hashtags').val(),
+                    station_display_text: $('#bwp_station_display_text').val(),
+                    webcam_image_url: $('#bwp_webcam_image_url').val(),
+                    webcam_display_text: $('#bwp_webcam_display_text').val()
+                };
+                $('input[type=checkbox][name^="bwp_include_"]').each(function() {
+                    data[$(this).attr('name')] = $(this).is(':checked') ? 'on' : '';
+                });
+                $.post(ajaxurl, data, function(resp) {
+                    if (resp.success) {
+                        $('#bwp-live-preview').text(resp.data.preview);
+                    } else {
+                        $('#bwp-live-preview').text('No clientraw file available to parse');
+                    }
+                }).fail(function() {
                     $('#bwp-live-preview').text('No clientraw file available to parse');
-                }
-            }).fail(function() {
-                $('#bwp-live-preview').text('No clientraw file available to parse');
+                });
+            }
+            $('#bwp_post_prefix, #bwp_units, #bwp_hashtags, #bwp_station_display_text, #bwp_webcam_image_url, #bwp_webcam_display_text').on('input change', function() {
+                updateCharCount();
+                updateLivePreview();
             });
-        }
-        $('#bwp_post_prefix, #bwp_units, #bwp_hashtags, #bwp_station_display_text, #bwp_webcam_image_url, #bwp_webcam_display_text').on('input change', function() {
+            $('input[type=checkbox][name^="bwp_include_"]').on('change', function() {
+                updateCharCount();
+                updateLivePreview();
+            });
             updateCharCount();
             updateLivePreview();
         });
-        $('input[type=checkbox][name^="bwp_include_"]').on('change', function() {
-            updateCharCount();
-            updateLivePreview();
-        });
-        updateCharCount();
-        updateLivePreview();
-    });
     </script>
-    <?php
+<?php
 }
 
 // ---------- HELPERS, POST FORMATTING, CRON, AJAX, POSTING, ETC ----------
 
-function bwp_format_weather_output_with_facets($data, $station_url = '') {
+function bwp_format_weather_output_with_facets($data, $station_url = '')
+{
     $units = get_option('bwp_units', 'both');
     $prefix = get_option('bwp_post_prefix', 'Weather Update');
     $hashtags = get_option('bwp_hashtags', '');
@@ -586,31 +593,67 @@ function bwp_format_weather_output_with_facets($data, $station_url = '') {
         $webcam_display = trim(sanitize_text_field($_POST['webcam_display_text']));
     }
     $embed = null;
-if ($webcam_url && filter_var($webcam_url, FILTER_VALIDATE_URL)) {
-    // Do NOT append any text about the image to the post body!
-    $embed = [
-        'image_url' => $webcam_url,
-        'alt' => $webcam_display ?: 'Webcam Image'
-    ];
-}
+    if ($webcam_url && filter_var($webcam_url, FILTER_VALIDATE_URL)) {
+        // Do NOT append any text about the image to the post body!
+        $embed = [
+            'image_url' => $webcam_url,
+            'alt' => $webcam_display ?: 'Webcam Image'
+        ];
+    }
 
     return ['text' => $post, 'facets' => $facets, 'embed' => $embed];
 }
 
 // ---------- Unit Conversion Helpers ----------
-function bwp_c_to_f($c) { return round(($c * 9/5) + 32, 1); }
-function bwp_kmh_to_mph($kmh) { return round($kmh * 0.621371, 1); }
-function bwp_knots_to_kmh($knots) { return round($knots * 1.852, 1); }
-function bwp_knots_to_mph($knots) { return round($knots * 1.15078, 1); }
-function bwp_mm_to_in($mm) { return round($mm * 0.0393701, 2); }
-function bwp_hpa_to_inhg($hpa) { return round($hpa * 0.0295299830714, 2); }
-function bwp_degrees_to_compass($degrees) {
-    $dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-             'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+function bwp_c_to_f($c)
+{
+    return round(($c * 9 / 5) + 32, 1);
+}
+function bwp_kmh_to_mph($kmh)
+{
+    return round($kmh * 0.621371, 1);
+}
+function bwp_knots_to_kmh($knots)
+{
+    return round($knots * 1.852, 1);
+}
+function bwp_knots_to_mph($knots)
+{
+    return round($knots * 1.15078, 1);
+}
+function bwp_mm_to_in($mm)
+{
+    return round($mm * 0.0393701, 2);
+}
+function bwp_hpa_to_inhg($hpa)
+{
+    return round($hpa * 0.0295299830714, 2);
+}
+function bwp_degrees_to_compass($degrees)
+{
+    $dirs = [
+        'N',
+        'NNE',
+        'NE',
+        'ENE',
+        'E',
+        'ESE',
+        'SE',
+        'SSE',
+        'S',
+        'SSW',
+        'SW',
+        'WSW',
+        'W',
+        'WNW',
+        'NW',
+        'NNW'
+    ];
     $degrees = floatval($degrees);
     return $dirs[round($degrees / 22.5) % 16];
 }
-function bwp_get_remote_file_last_modified($url) {
+function bwp_get_remote_file_last_modified($url)
+{
     $headers = @get_headers($url, 1);
     if (!$headers || !isset($headers['Last-Modified'])) {
         return false;
@@ -621,7 +664,8 @@ function bwp_get_remote_file_last_modified($url) {
 }
 
 // ---------- Preview/Test Post Handler ----------
-function bwp_get_test_post_preview_and_response(&$preview, &$response, &$response_class, &$file_age_warning, $force_post = false) {
+function bwp_get_test_post_preview_and_response(&$preview, &$response, &$response_class, &$file_age_warning, $force_post = false)
+{
     $preview = '';
     $response = '';
     $response_class = 'notice-info';
@@ -683,7 +727,8 @@ function bwp_get_test_post_preview_and_response(&$preview, &$response, &$respons
 }
 
 // ---------- Actually Post the Update (for cron and test post), using clickable facets ----------
-function bwp_post_weather_update() {
+function bwp_post_weather_update()
+{
     $clientraw_url = get_option('bwp_clientraw_url');
     $station_url = get_option('bwp_station_url', '');
     $frequency = intval(get_option('bwp_frequency', 1));
@@ -709,7 +754,8 @@ function bwp_post_weather_update() {
 }
 
 // ---------- Post to both Bluesky accounts if enabled ----------
-function bwp_post_to_bluesky_accounts($post_struct) {
+function bwp_post_to_bluesky_accounts($post_struct)
+{
     $username1 = get_option('bwp_bluesky_username');
     $app_password1 = get_option('bwp_bluesky_app_password');
     $enable_second = get_option('bwp_bluesky_enable_second', '');
@@ -745,7 +791,8 @@ function bwp_post_to_bluesky_accounts($post_struct) {
 }
 
 // ---------- WP Cron: schedule, clear, and handle scheduled posts ----------
-function bwp_schedule_event() {
+function bwp_schedule_event()
+{
     bwp_clear_scheduled_event();
     $frequency = intval(get_option('bwp_frequency', 1));
     $interval_seconds = $frequency * 3600;
@@ -761,7 +808,7 @@ function bwp_schedule_event() {
     }
     wp_schedule_event($first_post, 'bwp_custom_interval', 'bwp_cron_event');
 }
-add_filter('cron_schedules', function($schedules) {
+add_filter('cron_schedules', function ($schedules) {
     $frequency = intval(get_option('bwp_frequency', 1));
     $interval_seconds = $frequency * 3600;
     $schedules['bwp_custom_interval'] = array(
@@ -770,7 +817,8 @@ add_filter('cron_schedules', function($schedules) {
     );
     return $schedules;
 });
-function bwp_clear_scheduled_event() {
+function bwp_clear_scheduled_event()
+{
     $timestamp = wp_next_scheduled('bwp_cron_event');
     if ($timestamp) {
         wp_unschedule_event($timestamp, 'bwp_cron_event');
@@ -783,7 +831,8 @@ add_action('update_option_bwp_first_post_minute', 'bwp_schedule_event');
 register_activation_hook(__FILE__, 'bwp_schedule_event');
 
 add_action('bwp_cron_event', 'bwp_cron_handler');
-function bwp_cron_handler() {
+function bwp_cron_handler()
+{
     $result = bwp_post_weather_update();
     if ($result === true) {
         update_option('bwp_last_post_time', current_time('timestamp'));
@@ -792,7 +841,8 @@ function bwp_cron_handler() {
 
 // ---------- AJAX: Live post preview (returns formatted preview) ----------
 add_action('wp_ajax_bwp_live_post_preview', 'bwp_live_post_preview_ajax');
-function bwp_live_post_preview_ajax() {
+function bwp_live_post_preview_ajax()
+{
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Not allowed');
     }
@@ -852,7 +902,8 @@ function bwp_live_post_preview_ajax() {
 
 // ---------- AJAX: Live character count estimation ----------
 add_action('wp_ajax_bwp_estimate_char_count', 'bwp_estimate_char_count_ajax');
-function bwp_estimate_char_count_ajax() {
+function bwp_estimate_char_count_ajax()
+{
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Not allowed');
     }
