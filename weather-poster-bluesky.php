@@ -763,30 +763,41 @@ function wpb_post_to_bluesky_accounts($post_struct)
     $app_password2 = get_option('wpb_bluesky_app_password2');
     $results = [];
 
+    // Get the settings array for poster class
+    $settings = get_option('wpb_settings');
+    $backup_settings = $settings; // Save to restore later
+
+    // Primary account
     if ($username1 && $app_password1) {
+        // Temporarily update settings for account 1
+        $settings['wpb_bluesky_username'] = $username1;
+        $settings['wpb_bluesky_password'] = $app_password1;
+        update_option('wpb_settings', $settings);
         try {
-            $poster1 = new WPB_Bluesky_Poster($username1, $app_password1);
-            $results['Account 1'] = $poster1->post_status(
-                $post_struct['text'],
-                $post_struct['facets'],
-                $post_struct['embed'] ?? null
-            );
+            $poster1 = new WPB_Bluesky_Poster();
+            $results['Account 1'] = $poster1->post_struct_to_bluesky($post_struct, true);
         } catch (Exception $e) {
             $results['Account 1'] = $e->getMessage();
         }
     }
+
+    // Second account
     if ($enable_second === 'on' && $username2 && $app_password2) {
+        // Temporarily update settings for account 2
+        $settings['wpb_bluesky_username'] = $username2;
+        $settings['wpb_bluesky_password'] = $app_password2;
+        update_option('wpb_settings', $settings);
         try {
-            $poster2 = new WPB_Bluesky_Poster($username2, $app_password2);
-            $results['Account 2'] = $poster2->post_status(
-                $post_struct['text'],
-                $post_struct['facets'],
-                $post_struct['embed'] ?? null
-            );
+            $poster2 = new WPB_Bluesky_Poster();
+            $results['Account 2'] = $poster2->post_struct_to_bluesky($post_struct, true);
         } catch (Exception $e) {
             $results['Account 2'] = $e->getMessage();
         }
     }
+
+    // Restore original settings
+    update_option('wpb_settings', $backup_settings);
+
     return $results;
 }
 

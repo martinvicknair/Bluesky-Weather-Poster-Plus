@@ -344,5 +344,98 @@ class WPB_Bluesky_Poster
             return $test ? (isset($post_result['error']) ? $post_result['error'] : __('Unknown error posting to Bluesky.', 'wpb')) : false;
         }
     }
+        /**
+     * Post a fully structured post (with facets/links, images, etc) to Bluesky.
+     *
+     * @param array $post_struct Should have keys: text (string), facets (array), embed (array, optional)
+     * @param bool $test If true, return status for UI feedback.
+     * @return true|string True on success, or error message.
+     */
+    public function post_struct_to_bluesky($post_struct, $test = false)
+    {
+        $options = get_option('wpb_settings');
+        if (empty($options['wpb_bluesky_username'])) {
+            return $test ? __('Missing Bluesky username.', 'wpb') : false;
+        }
+
+        $password = $options['wpb_bluesky_password'] ?? '';
+        if (empty($password)) {
+            $password = get_option('wpb_bluesky_password');
+            if (empty($password)) {
+                return $test ? __('Missing Bluesky app password.', 'wpb') : false;
+            }
+        }
+
+        $handle = trim($options['wpb_bluesky_username']);
+        $app_password = trim($password);
+
+        // Bluesky authentication
+        $login_url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
+        $login_body = [
+            'identifier' => $handle,
+            'password'   => $app_password
+        ];
+        $login_response = wp_remote_post($login_url, [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body'    => wp_json_encode($login_body),
+            'timeout' => 15
+        ]);
+        if (is_wp_error($login_response)) {
+            return $test ? $login_response->get_error_message() : false;
+        }
+        $login_data = json_decode(wp_remote_retrieve_body($login_response), true);
+        if (empty($login_data['accessJwt'])) {
+            return $test ? __('Bluesky login failed. Please check your credentials.', 'wpb') : false;
+        }
+
+        $jwt = $login_data['accessJwt'];
+        $did = $login_data['did'];
+
+        // Prepare the post body
+        $post_url = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
+        $record = [
+            'text' => $post_struct['text'],
+            '$type' => 'app.bsky.feed.post',
+            'createdAt' => gmdate('c'),
+        ];
+        if (!empty($post_struct['facets'])) {
+            $record['facets'] = $post_struct['facets'];
+        }
+        if (!empty($post_struct['embed']) && isset($post_struct['embed']['image_url'])) {
+            $record['embed'] = [
+                '$type' => 'app.bsky.embed.images',
+                'images' => [[
+                    'alt' => $post_struct['embed']['alt'] ?? '',
+                    'image' => $post_struct['embed']['image_url'],
+                ]]
+            ];
+        }
+
+        $post_body = [
+            'repo' => $did,
+            'collection' => 'app.bsky.feed.post',
+            'record' => $record
+        ];
+
+        $post_response = wp_remote_post($post_url, [
+            'headers' => [
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $jwt,
+            ],
+            'body'    => wp_json_encode($post_body),
+            'timeout' => 15
+        ]);
+        if (is_wp_error($post_response)) {
+            return $test ? $post_response->get_error_message() : false;
+        }
+        $post_result = json_decode(wp_remote_retrieve_body($post_response), true);
+
+        if (!empty($post_result['uri'])) {
+            return $test ? true : null;
+        } else {
+            return $test ? (isset($post_result['error']) ? $post_result['error'] : __('Unknown error posting to Bluesky.', 'wpb')) : false;
+        }
+    }
+
 }
 //end class WPB_Bluesky_Poster
