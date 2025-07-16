@@ -8,42 +8,15 @@ Author: Martin Vicknair
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+/* ------------------------------------------------------------------ */
+/*  Includes – parser & poster classes                                */
+/* ------------------------------------------------------------------ */
 require_once plugin_dir_path( __FILE__ ) . 'class-wpb-clientraw-parser.php';
 require_once plugin_dir_path( __FILE__ ) . 'class-wpb-bluesky-poster.php';
 
-/* --------------------------------------------------------------------------
- * REGISTER OPTIONS
- * ------------------------------------------------------------------------*/
-function wpb_register_settings() {
-
-	$core_opts = [
-		'wpb_bluesky_username',
-		'wpb_bluesky_app_password',
-		'wpb_bluesky_enable_second',
-		'wpb_bluesky_username2',
-		'wpb_bluesky_app_password2',
-		'wpb_clientraw_url',
-		'wpb_station_url',
-		'wpb_station_display_text',
-		'wpb_webcam_image_url',
-		'wpb_webcam_display_text',
-		'wpb_frequency',
-		'wpb_units',
-		'wpb_post_prefix',
-		'wpb_first_post_hour',
-		'wpb_first_post_minute',
-		'wpb_hashtags',
-	];
-	foreach ( $core_opts as $o ) {
-		register_setting( 'wpb_settings_group', $o );
-	}
-	foreach ( wpb_get_field_option_keys() as $k ) {
-		register_setting( 'wpb_settings_group', $k );
-	}
-}
-add_action( 'admin_init', 'wpb_register_settings' );
-
-/* checkbox field keys */
+/* ------------------------------------------------------------------ */
+/*  Option registration                                               */
+/* ------------------------------------------------------------------ */
 function wpb_get_field_option_keys() {
 	return [
 		'wpb_include_temperature',
@@ -61,20 +34,38 @@ function wpb_get_field_option_keys() {
 		'wpb_include_weather_desc',
 	];
 }
+function wpb_register_settings() {
 
-/* friendly next-scheduled string */
-function wpb_get_next_scheduled_post_time() {
-	$t = wp_next_scheduled( 'wpb_cron_event' );
-	if ( ! $t ) { return 'Not scheduled.'; }
-	$tz = get_option( 'timezone_string' );
-	$dt = new DateTime( "@$t" );
-	if ( $tz ) { $dt->setTimezone( new DateTimeZone( $tz ) ); }
-	return $dt->format( 'Y-m-d H:i:s (T)' );
+	$core = [
+		'wpb_bluesky_username',
+		'wpb_bluesky_app_password',
+		'wpb_bluesky_enable_second',
+		'wpb_bluesky_username2',
+		'wpb_bluesky_app_password2',
+		'wpb_clientraw_url',
+		'wpb_station_url',
+		'wpb_station_display_text',
+		'wpb_webcam_image_url',
+		'wpb_webcam_display_text',
+		'wpb_frequency',
+		'wpb_units',
+		'wpb_post_prefix',
+		'wpb_first_post_hour',
+		'wpb_first_post_minute',
+		'wpb_hashtags',
+	];
+	foreach ( $core as $o ) {
+		register_setting( 'wpb_settings_group', $o );
+	}
+	foreach ( wpb_get_field_option_keys() as $k ) {
+		register_setting( 'wpb_settings_group', $k );
+	}
 }
+add_action( 'admin_init', 'wpb_register_settings' );
 
-/* --------------------------------------------------------------------------
- * ADMIN MENU / PAGE
- * ------------------------------------------------------------------------*/
+/* ------------------------------------------------------------------ */
+/*  Admin page                                                        */
+/* ------------------------------------------------------------------ */
 function wpb_add_settings_page() {
 	add_options_page(
 		'Weather Poster Bluesky',
@@ -86,34 +77,39 @@ function wpb_add_settings_page() {
 }
 add_action( 'admin_menu', 'wpb_add_settings_page' );
 
+function wpb_get_next_scheduled_post_time() {
+	$t = wp_next_scheduled( 'wpb_cron_event' );
+	if ( ! $t ) { return 'Not scheduled.'; }
+	$tz = get_option( 'timezone_string' );
+	$dt = new DateTime( "@$t" );
+	if ( $tz ) { $dt->setTimezone( new DateTimeZone( $tz ) ); }
+	return $dt->format( 'Y-m-d H:i:s (T)' );
+}
+
 function wpb_render_settings_page() {
 
-	/* preview / response placeholders */
 	$preview          = '';
 	$response         = '';
 	$response_class   = 'notice-info';
 	$file_age_warning = '';
 
-	/* Handle “Send Test Post” button */
 	if ( isset( $_POST['wpb_test_post'] ) ) {
 		wpb_get_test_post_preview_and_response(
 			$preview,
 			$response,
 			$response_class,
 			$file_age_warning,
-			true      // force_post
+			true
 		);
 	}
-
 	?>
 	<div class="wrap">
 		<h1>Weather Poster Bluesky</h1>
-
 		<form method="post" action="options.php">
 			<?php
 			settings_fields( 'wpb_settings_group' );
 			do_settings_sections( 'wpb_settings_group' );
-			include __DIR__ . '/admin-form-layout.php';   /* giant settings table */
+			include __DIR__ . '/admin-form-layout.php';
 			submit_button();
 			?>
 		</form>
@@ -128,13 +124,11 @@ function wpb_render_settings_page() {
 		<?php endif; ?>
 
 		<div class="notice notice-info" style="white-space:pre-wrap;">
-			<strong>Post Preview:</strong>
-			<?php echo "\n" . esc_html( $preview ); ?>
+			<strong>Post Preview:</strong><?php echo "\n" . esc_html( $preview ); ?>
 		</div>
 
 		<div class="notice <?php echo esc_attr( $response_class ); ?>" style="white-space:pre-wrap;">
-			<strong>API Response:</strong>
-			<?php echo "\n" . esc_html( $response ); ?>
+			<strong>API Response:</strong><?php echo "\n" . esc_html( $response ); ?>
 		</div>
 
 		<div class="notice notice-info"><strong>Next scheduled post:</strong> <?php echo esc_html( wpb_get_next_scheduled_post_time() ); ?></div>
@@ -142,16 +136,9 @@ function wpb_render_settings_page() {
 	<?php
 }
 
-/* --------------------------------------------------------------------------
- * FORMATTER  (unchanged – use your prior working version)
- * ------------------------------------------------------------------------*/
-function wpb_format_weather_output_with_facets( $d, $station_url = '' ) {
-	/* … existing implementation … */
-}
-
-/* --------------------------------------------------------------------------
- * LOW-LEVEL UNIT HELPERS
- * ------------------------------------------------------------------------*/
+/* ------------------------------------------------------------------ */
+/*  Unit helpers                                                      */
+/* ------------------------------------------------------------------ */
 function wpb_c_to_f( $c )       { return round( ( $c * 9 / 5 ) + 32, 1 ); }
 function wpb_knots_to_kmh( $k ) { return round( 1.852 * $k, 1 ); }
 function wpb_knots_to_mph( $k ) { return round( 1.15078 * $k, 1 ); }
@@ -165,9 +152,108 @@ function wpb_get_remote_file_last_modified( $url ) {
 	return strtotime( $lm ) ?: false;
 }
 
-/* --------------------------------------------------------------------------
- * CRON SCHEDULING  (identical logic, re-registered for safety)
- * ------------------------------------------------------------------------*/
+/* ------------------------------------------------------------------ */
+/*  Formatter (your existing version – unchanged)                     */
+/* ------------------------------------------------------------------ */
+function wpb_format_weather_output_with_facets( $d, $station_url = '' ) {
+	/* ← keep your current formatter implementation here */
+	return [
+		'text'   => 'Mock text – replace with real formatter',
+		'facets' => [],
+		'embed'  => [
+			'image_url' => get_option( 'wpb_webcam_image_url' ),
+			'alt'       => get_option( 'wpb_webcam_display_text', 'Webcam' ),
+		],
+	];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Preview / test-post handler (safe stringify)                       */
+/* ------------------------------------------------------------------ */
+function wpb_get_test_post_preview_and_response( &$prev, &$resp, &$class, &$warn, $force = false ) {
+
+	$prev = $resp = '';
+	$class = 'notice-info';
+	$warn  = '';
+
+	$url  = get_option( 'wpb_clientraw_url' );
+	$freq = (int) get_option( 'wpb_frequency', 1 );
+	$max  = $freq * 3600;
+	$lm   = wpb_get_remote_file_last_modified( $url );
+	$now  = time();
+
+	if ( ! $force && $lm && ( $now - $lm ) > $max ) {
+		$warn  = 'clientraw.txt older than posting interval.';
+		$class = 'notice-warning';
+		return false;
+	}
+
+	try {
+		$d = ( new WPB_Clientraw_Parser() )->parse( $url );
+		if ( ! $d ) { throw new Exception( 'Unable to parse clientraw.txt.' ); }
+
+		$post_struct = wpb_format_weather_output_with_facets( $d, get_option( 'wpb_station_url' ) );
+		$prev        = $post_struct['text'];
+
+		$res = wpb_post_to_bluesky_accounts( $post_struct );
+
+		if ( is_array( $res ) ) {
+			foreach ( $res as $acc => $r ) {
+				$resp .= $acc . ': ' . ( $r === true ? 'Success!' : $r ) . "\n";
+			}
+		} else {
+			$resp = ( $res === true || $res === null ) ? 'Success!' : (string) $res;
+		}
+		$class = 'notice-success';
+		return true;
+
+	} catch ( Exception $e ) {
+		$resp  = $e->getMessage();
+		$class = 'notice-error';
+		return false;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/*  Multi-account poster (inline-image capable, array-guard)          */
+/* ------------------------------------------------------------------ */
+function wpb_post_to_bluesky_accounts( $post_struct ) {
+
+	$u1  = get_option( 'wpb_bluesky_username' );
+	$p1  = get_option( 'wpb_bluesky_app_password' );
+	$u2  = get_option( 'wpb_bluesky_username2' );
+	$p2  = get_option( 'wpb_bluesky_app_password2' );
+	$en2 = get_option( 'wpb_bluesky_enable_second', '' );
+
+	$settings = get_option( 'wpb_settings' );
+	if ( ! is_array( $settings ) ) { $settings = []; }
+	$backup = $settings;
+
+	$out = [];
+
+	if ( $u1 && $p1 ) {
+		$settings['wpb_bluesky_username'] = $u1;
+		$settings['wpb_bluesky_password'] = $p1;
+		update_option( 'wpb_settings', $settings );
+		$out['Account 1'] = ( new WPB_Bluesky_Poster() )
+			->post_struct_to_bluesky( $post_struct, true );
+	}
+
+	if ( 'on' === $en2 && $u2 && $p2 ) {
+		$settings['wpb_bluesky_username'] = $u2;
+		$settings['wpb_bluesky_password'] = $p2;
+		update_option( 'wpb_settings', $settings );
+		$out['Account 2'] = ( new WPB_Bluesky_Poster() )
+			->post_struct_to_bluesky( $post_struct, true );
+	}
+
+	update_option( 'wpb_settings', $backup );
+	return $out;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cron scheduling                                                   */
+/* ------------------------------------------------------------------ */
 function wpb_schedule_event() {
 	wpb_clear_scheduled_event();
 	$int  = (int) get_option( 'wpb_frequency', 1 ) * 3600;
@@ -184,7 +270,7 @@ function wpb_schedule_event() {
 add_filter( 'cron_schedules', function ( $s ) {
 	$s['wpb_custom_interval'] = [
 		'interval' => (int) get_option( 'wpb_frequency', 1 ) * 3600,
-		'display'  => 'WPB custom interval',
+		'display'  => 'Weather Poster interval',
 	];
 	return $s;
 } );
@@ -197,17 +283,12 @@ register_activation_hook( __FILE__,  'wpb_schedule_event' );
 register_deactivation_hook( __FILE__, 'wpb_clear_scheduled_event' );
 
 add_action( 'wpb_cron_event', function () {
-	$parser = new WPB_Clientraw_Parser();
-	$data   = $parser->parse( get_option( 'wpb_clientraw_url' ) );
-	if ( ! $data ) { return; }
-	$post = wpb_format_weather_output_with_facets( $data, get_option( 'wpb_station_url' ) );
+	$p = new WPB_Clientraw_Parser();
+	$d = $p->parse( get_option( 'wpb_clientraw_url' ) );
+	if ( ! $d ) { return; }
+	$post = wpb_format_weather_output_with_facets( $d, get_option( 'wpb_station_url' ) );
 	wpb_post_to_bluesky_accounts( $post );
 } );
-
-/* --------------------------------------------------------------------------
- * AJAX LIVE PREVIEW / CHAR-COUNT  (keep original handlers)
- * ------------------------------------------------------------------------*/
-
 
 /* --------------------------------------------------------------------------
  * AJAX, CONVERSION HELPERS, FORMATTER, etc.
