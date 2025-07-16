@@ -765,7 +765,7 @@ function wpb_post_to_bluesky_accounts($post_struct)
 
     if ($username1 && $app_password1) {
         try {
-            $poster1 = new Bluesky_Poster($username1, $app_password1);
+            $poster1 = new WPB_Bluesky_Poster($username1, $app_password1);
             $results['Account 1'] = $poster1->post_status(
                 $post_struct['text'],
                 $post_struct['facets'],
@@ -777,7 +777,7 @@ function wpb_post_to_bluesky_accounts($post_struct)
     }
     if ($enable_second === 'on' && $username2 && $app_password2) {
         try {
-            $poster2 = new Bluesky_Poster($username2, $app_password2);
+            $poster2 = new WPB_Bluesky_Poster($username2, $app_password2);
             $results['Account 2'] = $poster2->post_status(
                 $post_struct['text'],
                 $post_struct['facets'],
