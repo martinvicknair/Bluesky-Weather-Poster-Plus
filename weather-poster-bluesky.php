@@ -699,25 +699,28 @@ function wpb_get_test_post_preview_and_response(&$preview, &$response, &$respons
 
         $results = wpb_post_to_bluesky_accounts($post_struct);
 
-        if (is_array($results)) {
-            $response = "";
-            foreach ($results as $acc => $resp) {
-                $response .= "$acc: ";
-                if (is_array($resp)) {
-                    $response .= print_r($resp, true);
-                } else {
-                    $response .= $resp;
-                }
-                $response .= "\n";
-            }
-            $response_class = 'notice-success';
-        } elseif ($results === null || $results === true) {
-            $response = 'Success (no additional details from API)';
-            $response_class = 'notice-success';
+if (is_array($results)) {
+    $response = "";
+    foreach ($results as $acc => $resp) {
+        $response .= "$acc: ";
+        if ($resp === true) {
+            $response .= "Success!";
+        } elseif (is_string($resp)) {
+            $response .= $resp;
         } else {
-            $response = $results;
-            $response_class = 'notice-success';
+            $response .= print_r($resp, true);
         }
+        $response .= "\n";
+    }
+    $response_class = 'notice-success';
+} elseif ($results === null || $results === true) {
+    $response = 'Success (no additional details from API)';
+    $response_class = 'notice-success';
+} else {
+    $response = is_string($results) ? $results : print_r($results, true);
+    $response_class = 'notice-success';
+}
+
         return true;
     } catch (Exception $e) {
         $response = $e->getMessage();
