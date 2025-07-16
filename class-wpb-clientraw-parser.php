@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Bluesky Weather Poster Plus - Clientraw.txt Parser
+ * Weather Poster Bluesky - Clientraw.txt Parser
  *
  * Responsible for downloading and parsing the clientraw.txt weather data file.
  * Converts the raw data into a structured array suitable for social posting.
  *
- * @package    Bluesky Weather Poster Plus
+ * @package    Weather Poster Bluesky
  * @subpackage Parsers
  * @author     Your Name
  * @since      1.0.0
@@ -15,13 +15,13 @@
 defined('ABSPATH') || exit;
 
 /**
- * Class BWWP_Clientraw_Parser
+ * Class WPB_Clientraw_Parser
  *
  * Usage:
- * $parser = new BWWP_Clientraw_Parser();
+ * $parser = new WPB_Clientraw_Parser();
  * $data = $parser->parse('https://your-site.com/clientraw.txt');
  */
-class BWWP_Clientraw_Parser
+class WPB_Clientraw_Parser
 {
 
     /**
@@ -85,4 +85,4 @@ class BWWP_Clientraw_Parser
         return $dirs[round($degrees / 22.5) % 16];
     }
 }
-// End of class BWWP_Clientraw_Parser
+// End of class WPB_Clientraw_Parser

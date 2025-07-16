@@ -1,6 +1,6 @@
-# Bluesky Weather Poster Plus WordPress Plugin
+# Weather Poster Bluesky WordPress Plugin
 
-<img src="/assets/banner-772x250.png" alt="Bluesky Weather Poster Plus WordPress Plugin logo"/>
+<img src="/assets/banner-772x250.png" alt="Weather Poster Bluesky WordPress Plugin logo"/>
 
 A free WordPress plugin that automatically posts weather updates from clientraw.txt to the Bluesky social network.
 
@@ -27,15 +27,15 @@ A free WordPress plugin that automatically posts weather updates from clientraw.
 > 🔺 Max Temp: 22.2°C (72°F)  
 > 🔻 Min Temp: 14.3°C (57.7°F)
 >
-> [🔗 Download the plugin!](https://bwpp.martinv.io/)
+> [🔗 Download the plugin!](https://wpbp.martinv.io/)
 >
-> [<span style="color:#1da1f2">#Weather</span>](https://bsky.app/tag/Weather) [<span style="color:#1da1f2">#WordPress</span>](https://bsky.app/tag/WordPress) [<span style="color:#1da1f2">#WeatherDisplay</span>](https://bsky.app/tag/WeatherDisplay) [<span style="color:#1da1f2">#bwpp</span>](https://bsky.app/tag/bwpp)
+> [<span style="color:#1da1f2">#Weather</span>](https://bsky.app/tag/Weather) [<span style="color:#1da1f2">#WordPress</span>](https://bsky.app/tag/WordPress) [<span style="color:#1da1f2">#WeatherDisplay</span>](https://bsky.app/tag/WeatherDisplay) [<span style="color:#1da1f2">#wpbp</span>](https://bsky.app/tag/wpbp)
 
 ## Installation
 
 1. Download the plugin [ZIP](https://github.com/martinvicknair/Bluesky-Weather-Poster-Plus/archive/refs/heads/main.zip) file
 2. Upload and Activate the zipped file through the 'Plugins' menu in WordPress
-3. Go to Settings > Bluesky Weather Poster Plus to configure
+3. Go to Settings > Weather Poster Bluesky to configure
 
 ## Usage
 
