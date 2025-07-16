@@ -757,51 +757,63 @@ function wpb_post_weather_update()
 }
 
 // ---------- Post to both Bluesky accounts if enabled ----------
-function wpb_post_to_bluesky_accounts($post_struct)
-{
-    $username1 = get_option('wpb_bluesky_username');
-    $app_password1 = get_option('wpb_bluesky_app_password');
-    $enable_second = get_option('wpb_bluesky_enable_second', '');
-    $username2 = get_option('wpb_bluesky_username2');
-    $app_password2 = get_option('wpb_bluesky_app_password2');
-    $results = [];
+function wpb_post_to_bluesky_accounts( $post_struct ) {
 
-    // Get the settings array for poster class
-    $settings = get_option('wpb_settings');
-    $backup_settings = $settings; // Save to restore later
+	// Credentials stored in individual options
+	$username1      = get_option( 'wpb_bluesky_username' );
+	$app_password1  = get_option( 'wpb_bluesky_app_password' );
+	$enable_second  = get_option( 'wpb_bluesky_enable_second', '' );
+	$username2      = get_option( 'wpb_bluesky_username2' );
+	$app_password2  = get_option( 'wpb_bluesky_app_password2' );
 
-    // Primary account
-    if ($username1 && $app_password1) {
-        // Temporarily update settings for account 1
-        $settings['wpb_bluesky_username'] = $username1;
-        $settings['wpb_bluesky_password'] = $app_password1;
-        update_option('wpb_settings', $settings);
-        try {
-            $poster1 = new WPB_Bluesky_Poster();
-            $results['Account 1'] = $poster1->post_struct_to_bluesky($post_struct, true);
-        } catch (Exception $e) {
-            $results['Account 1'] = $e->getMessage();
-        }
-    }
+	$results = [];
 
-    // Second account
-    if ($enable_second === 'on' && $username2 && $app_password2) {
-        // Temporarily update settings for account 2
-        $settings['wpb_bluesky_username'] = $username2;
-        $settings['wpb_bluesky_password'] = $app_password2;
-        update_option('wpb_settings', $settings);
-        try {
-            $poster2 = new WPB_Bluesky_Poster();
-            $results['Account 2'] = $poster2->post_struct_to_bluesky($post_struct, true);
-        } catch (Exception $e) {
-            $results['Account 2'] = $e->getMessage();
-        }
-    }
+	// ------------------------------------------------------------------
+	// SAFETY GUARD — wpb_settings *must* be an array before we index it.
+	// ------------------------------------------------------------------
+	$settings = get_option( 'wpb_settings' );
+	if ( ! is_array( $settings ) ) {
+		$settings = [];
+	}
+	$backup_settings = $settings; // save to restore later
+	// ------------------------------------------------------------------
 
-    // Restore original settings
-    update_option('wpb_settings', $backup_settings);
+	/* ========= Primary account ========= */
+	if ( $username1 && $app_password1 ) {
 
-    return $results;
+		// Temporarily inject this account’s creds into wpb_settings
+		$settings['wpb_bluesky_username'] = $username1;
+		$settings['wpb_bluesky_password'] = $app_password1;
+		update_option( 'wpb_settings', $settings );
+
+		try {
+			$poster1                = new WPB_Bluesky_Poster();
+			$results['Account 1']   = $poster1->post_struct_to_bluesky( $post_struct, true );
+		} catch ( Exception $e ) {
+			$results['Account 1'] = $e->getMessage();
+		}
+	}
+
+	/* ========= Second account (optional) ========= */
+	if ( 'on' === $enable_second && $username2 && $app_password2 ) {
+
+		// Inject second account creds
+		$settings['wpb_bluesky_username'] = $username2;
+		$settings['wpb_bluesky_password'] = $app_password2;
+		update_option( 'wpb_settings', $settings );
+
+		try {
+			$poster2                = new WPB_Bluesky_Poster();
+			$results['Account 2']   = $poster2->post_struct_to_bluesky( $post_struct, true );
+		} catch ( Exception $e ) {
+			$results['Account 2'] = $e->getMessage();
+		}
+	}
+
+	// ------------ Restore original wpb_settings ------------
+	update_option( 'wpb_settings', $backup_settings );
+
+	return $results;
 }
 
 // ---------- WP Cron: schedule, clear, and handle scheduled posts ----------
