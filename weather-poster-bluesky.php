@@ -10,7 +10,7 @@ This plugin is a fork of [Bluesky Weather Poster](https://github.com/TheLich2112
 if (!defined('ABSPATH')) exit;
 
 require_once plugin_dir_path(__FILE__) . 'class-wpb-bluesky-poster.php';
-require_once plugin_dir_path(__FILE__) . 'class-wpb-bluesky-poster.php';
+require_once plugin_dir_path(__FILE__) . 'class-wpb-clientraw-parser.php';
 
 function wpb_register_settings()
 {
@@ -692,7 +692,7 @@ function wpb_get_test_post_preview_and_response(&$preview, &$response, &$respons
     }
 
     try {
-        $parser = new Clientraw_Parser($clientraw_url);
+        $parser = new WPB_Clientraw_Parser($clientraw_url);
         $data = $parser->get_weather_data();
         $post_struct = wpb_format_weather_output_with_facets($data, $station_url);
         $preview = $post_struct['text'];
@@ -744,7 +744,7 @@ function wpb_post_weather_update()
             return wpb_post_to_bluesky_accounts(['text' => $status, 'facets' => []]);
         }
     }
-    $parser = new Clientraw_Parser($clientraw_url);
+    $parser = new WPB_Clientraw_Parser($clientraw_url);
     $data = $parser->get_weather_data();
     if (!$data || empty($data)) {
         return false;
@@ -880,7 +880,7 @@ function wpb_live_post_preview_ajax()
 
     try {
         if (!$clientraw_url) throw new Exception("No clientraw file available to parse");
-        $parser = new Clientraw_Parser($clientraw_url);
+        $parser = new WPB_Clientraw_Parser($clientraw_url);
         $data = $parser->get_weather_data();
         if (!$data || empty($data)) throw new Exception("No clientraw file available to parse");
         $post_struct = wpb_format_weather_output_with_facets($data, $station_url);
