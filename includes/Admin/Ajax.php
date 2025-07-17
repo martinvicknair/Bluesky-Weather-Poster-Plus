@@ -1,25 +1,20 @@
 <?php
 
 /**
- * AJAX endpoints used by the Settings screen.
- *
- * - `bwpp_char_count`   → returns post length after formatting, so we can warn
- *                         users when approaching Bluesky’s ~300‑char limit.
- * - `bwpp_live_preview` → returns the full formatted status *as it will be sent*
- *                         so the user can check appearance.
- *
- * Both actions are authenticated (current user must `manage_options`) and use
- * nonces. The simple JS that calls these endpoints will be enqueued later
- * inside Settings::render() or via an admin_enqueue_scripts hook.
+ * File: includes/Admin/Ajax.php
+ * AJAX endpoints for the Settings screen.
+ * - bwpp_char_count   → returns post length.
+ * - bwpp_live_preview → returns formatted status preview.
+ * Requires `manage_options` capability and a nonce.
  *
  * @package BWPP\Admin
  */
 
-namespace BWPP\Core;
+namespace BWPP\Admin;
 
 defined('ABSPATH') || exit;
 
-use BWPP\Core\Formatter; // TBD
+use BWPP\Core\Formatter;
 
 final class Ajax
 {
@@ -30,29 +25,20 @@ final class Ajax
         add_action('wp_ajax_bwpp_live_preview', [$this, 'live_preview']);
     }
 
-    /* --------------------------------------------------------------------- */
-    /* –– CALLBACKS ––                                                       */
-    /* --------------------------------------------------------------------- */
-
-    /**
-     * Return character count for the currently saved (or draft) settings.
-     */
+    /** Character count endpoint. */
     public function char_count(): void
     {
         check_ajax_referer('bwpp_settings_nonce');
         $this->require_cap();
 
-        // For live editing we accept draft values in POST; fall back to saved.
-        $draft = $_POST['draft'] ?? [];
+        $draft    = $_POST['draft'] ?? [];
         $settings = array_merge(get_option(Settings::OPTION_KEY, []), $draft);
 
         $formatted = Formatter::format_weather_output_with_facets($this->dummy_weather(), '', $settings);
         wp_send_json_success(['length' => mb_strlen($formatted['text'])]);
     }
 
-    /**
-     * Return the fully formatted status string so the admin can preview it.
-     */
+    /** Live preview endpoint. */
     public function live_preview(): void
     {
         check_ajax_referer('bwpp_settings_nonce');
@@ -65,9 +51,7 @@ final class Ajax
         wp_send_json_success(['text' => $formatted['text']]);
     }
 
-    /* --------------------------------------------------------------------- */
-    /* –– HELPERS ––                                                         */
-    /* --------------------------------------------------------------------- */
+    /* Helpers ----------------------------------------------------------------- */
 
     private function dummy_weather(): array
     {
