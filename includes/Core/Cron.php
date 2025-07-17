@@ -7,9 +7,9 @@
  * @package BWPP\Core
  */
 
-declared('ABSPATH') || exit;
-
 namespace BWPP\Core;
+
+defined('ABSPATH') || exit;
 
 use DateTime;
 use DateTimeZone;

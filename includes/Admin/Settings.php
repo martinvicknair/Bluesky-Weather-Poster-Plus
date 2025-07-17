@@ -12,9 +12,9 @@
  * @package BWPP\Admin
  */
 
-defined('ABSPATH') || exit;
+namespace BWPP\Core;
 
-namespace BWPP\Admin;
+defined('ABSPATH') || exit;
 
 use BWPP\Core\Cron;
 

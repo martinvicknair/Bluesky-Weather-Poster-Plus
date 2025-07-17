@@ -6,9 +6,9 @@
  * @package BWPP\Core
  */
 
-defined('ABSPATH') || exit;
-
 namespace BWPP\Core;
+
+defined('ABSPATH') || exit;
 
 use BWPP\Admin\Settings;
 use BWPP\Admin\Ajax;

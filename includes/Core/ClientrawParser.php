@@ -13,9 +13,9 @@
  * @package BWPP\Core
  */
 
-defined('ABSPATH') || exit;
-
 namespace BWPP\Core;
+
+defined('ABSPATH') || exit;
 
 use WP_Error;
 
