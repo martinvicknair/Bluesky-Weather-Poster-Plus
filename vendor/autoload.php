@@ -1,75 +1,38 @@
 <?php
 
 /**
- * Core Plugin bootstrap – orchestrates all components.
- *
- * @package BWPP\Core
+ * File: vendor/autoload.php
+ * Fallback PSR‑4 autoloader for BWPP when Composer has not been run yet.
+ * When you later execute `composer install`, Composer will overwrite this file
+ * with its own generated autoloader.
  */
-
-namespace BWPP\Core;
 
 defined('ABSPATH') || exit;
 
-use BWPP\Admin\Settings;
-use BWPP\Admin\Ajax;
-use BWPP\Core\Cron;
-
-/**
- * Main singleton that wires all sub‑modules together.
- */
-final class Plugin
-{
-
-    /** @var self|null */
-    private static ?self $instance = null;
-
-    /**
-     * Singleton accessor.
-     */
-    public static function get_instance(): self
-    {
-        return self::$instance ?? (self::$instance = new self());
-    }
-
-    /** Hide constructor. */
-    private function __construct()
-    {
-        $this->init_hooks();
-    }
-
-    /** Register hooks. */
-    private function init_hooks(): void
-    {
-        if (is_admin()) {
-            new Settings();
-            new Ajax();
-        }
-
-        add_action(Cron::HOOK, [$this, 'handle_weather_post']);
-    }
-
-    /* Activation ---------------------------------------------------------- */
-
-    public static function activate(): void
-    {
-        if (class_exists(Cron::class)) {
-            Cron::register();
-        }
-    }
-
-    public static function deactivate(): void
-    {
-        if (class_exists(Cron::class)) {
-            Cron::clear();
-        }
-    }
-
-    /* Public hooks -------------------------------------------------------- */
-
-    public function handle_weather_post(): void
-    {
-        if (class_exists(Cron::class)) {
-            Cron::post_weather_update();
-        }
-    }
+// If Composer’s ClassLoader is already present, bail—this file is only a stub.
+if (class_exists('\\Composer\\Autoload\\ClassLoader', false)) {
+    return;
 }
+
+// -----------------------------------------------------------------------------
+// Minimal PSR‑4 autoload for the BWPP\ namespace
+// -----------------------------------------------------------------------------
+
+spl_autoload_register(static function (string $class): void {
+    $prefix   = 'BWPP\\';
+    $base_dir = defined('BWPP_PATH') ? BWPP_PATH . 'includes/' : __DIR__ . '/../includes/';
+
+    // Only handle classes in our own namespace.
+    $len = strlen($prefix);
+    if (0 !== strncmp($prefix, $class, $len)) {
+        return;
+    }
+
+    // Remove namespace prefix, convert namespace separators to directory slashes.
+    $relative = substr($class, $len);
+    $file     = $base_dir . str_replace('\\', '/', $relative) . '.php';
+
+    if (file_exists($file)) {
+        require $file;
+    }
+});
