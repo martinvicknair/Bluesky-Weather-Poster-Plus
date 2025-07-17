@@ -1,8 +1,8 @@
 <?php
 
 /**
+ * File: includes/Admin/Settings.php
  * Admin → Settings page + Settings API registration.
- *
  * This class exposes a single “Bluesky Weather Poster Plus” page under
  * **Settings ▸ Bluesky Weather Poster Plus**. All plugin options are stored in
  * a *single* serialized array (`bwpp_settings`) for cleanliness. Sanitization
@@ -12,7 +12,7 @@
  * @package BWPP\Admin
  */
 
-namespace BWPP\Core;
+namespace BWPP\Admin;
 
 defined('ABSPATH') || exit;
 
