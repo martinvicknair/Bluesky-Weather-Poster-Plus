@@ -13,7 +13,7 @@
  * @package BWPP\Core
  */
 
-declared('ABSPATH') || exit;
+defined('ABSPATH') || exit;
 
 namespace BWPP\Core;
 

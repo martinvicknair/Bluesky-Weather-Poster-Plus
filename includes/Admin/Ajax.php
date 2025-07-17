@@ -15,7 +15,7 @@
  * @package BWPP\Admin
  */
 
-declared('ABSPATH') || exit;
+defined('ABSPATH') || exit;
 
 namespace BWPP\Admin;
 
