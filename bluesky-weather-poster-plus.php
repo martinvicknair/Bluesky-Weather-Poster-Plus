@@ -1,75 +1,51 @@
 <?php
 
 /**
- * Plugin Name:       Bluesky Weather Poster Plus
- * Plugin URI:        https://example.com/bluesky-weather-poster-plus
- * Description:       Posts automated weather updates from your weather station to Bluesky. Refactored according to WordPress best practices.
- * Version:           2.0.0
- * Requires at least: 6.0
- * Requires PHP:      7.4
- * Author:            Your Name
- * Author URI:        https://example.com
- * License:           GPL v2 or later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       bwpp
- * Domain Path:       /languages
+ * File: bluesky-weather-poster-plus.php
+ * Root bootstrap for *Bluesky Weather Poster Plus*.
  *
- * @package BWPP
+ * Plugin Name:  Bluesky Weather Poster Plus
+ * Description:  Auto-post Weather-Display clientraw data (and webcam snapshot) to Bluesky.
+ * Version:      1.0.0
+ * Author:       Your Name
+ * License:      GPL-2.0+
  */
 
 defined('ABSPATH') || exit;
 
-// -----------------------------------------------------------------------------
-// Constants
-// -----------------------------------------------------------------------------
-if (! defined('BWPP_VERSION')) {
-    define('BWPP_VERSION', '2.0.0');
-}
-if (! defined('BWPP_FILE')) {
-    define('BWPP_FILE', __FILE__);
-}
-if (! defined('BWPP_PATH')) {
-    define('BWPP_PATH', plugin_dir_path(BWPP_FILE));
-}
-if (! defined('BWPP_URL')) {
-    define('BWPP_URL', plugin_dir_url(BWPP_FILE));
+/*------------------------------------------------------------------
+ * Constants
+ *----------------------------------------------------------------*/
+define('BWPP_VERSION', '1.0.0');
+define('BWPP_PATH', plugin_dir_path(__FILE__));
+
+/*------------------------------------------------------------------
+ * Autoloader (Composer or simple PSR-4 fallback)
+ *----------------------------------------------------------------*/
+if (file_exists(BWPP_PATH . 'vendor/autoload.php')) {
+    require BWPP_PATH . 'vendor/autoload.php';
+} else {
+    spl_autoload_register(static function ($class) {
+        if (str_starts_with($class, 'BWPP\\')) {
+            $path = BWPP_PATH . 'includes/' . str_replace('\\', '/', substr($class, 5)) . '.php';
+            if (file_exists($path)) {
+                require $path;
+            }
+        }
+    });
 }
 
-// -----------------------------------------------------------------------------
-// Autoloader (Composer or fallback)
-// -----------------------------------------------------------------------------
-$bwpp_autoloader = BWPP_PATH . 'vendor/autoload.php';
-if (file_exists($bwpp_autoloader)) {
-    require $bwpp_autoloader;
-}
-
-// -----------------------------------------------------------------------------
-// Bootstrap
-// -----------------------------------------------------------------------------
-/**
- * Load translations and start the plugin after all other plugins are loaded.
- */
-function bwpp_boot(): void
-{
-    load_plugin_textdomain('bwpp', false, dirname(plugin_basename(BWPP_FILE)) . '/languages');
-
-    if (class_exists('\\BWPP\\Core\\Plugin')) {
-        \BWPP\Core\Plugin::get_instance();
-    }
-}
-add_action('plugins_loaded', 'bwpp_boot');
-
-// -----------------------------------------------------------------------------
-// Activation / Deactivation Hooks
-// -----------------------------------------------------------------------------
-register_activation_hook(__FILE__, static function (): void {
-    if (class_exists('\\BWPP\\Core\\Plugin')) {
-        \BWPP\Core\Plugin::activate();
-    }
+/*------------------------------------------------------------------
+ * Boot
+ *----------------------------------------------------------------*/
+add_action('plugins_loaded', static function () {
+    \BWPP\Core\Plugin::get_instance();
 });
 
-register_deactivation_hook(__FILE__, static function (): void {
-    if (class_exists('\\BWPP\\Core\\Plugin')) {
-        \BWPP\Core\Plugin::deactivate();
-    }
-});
+/*------------------------------------------------------------------
+ * Lifecycle hooks
+ *----------------------------------------------------------------*/
+register_activation_hook(__FILE__,   ['\BWPP\Core\Plugin', 'on_activate']);
+register_deactivation_hook(__FILE__, ['\BWPP\Core\Plugin', 'on_deactivate']);
+
+// EOF
