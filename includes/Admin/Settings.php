@@ -186,19 +186,35 @@ final class Settings
             'select',
             ['options' => $presets]
         );
+
+        /* ▼▼ replace the next two calls ▼▼ */
+
+        /** First-run hour dropdown (00-23) */
         $this->add_field(
             self::FIELD_HOUR,
             __('First Post Hour (0–23)', 'bwpp'),
             self::SECTION_SCHEDULE,
-            'number',
-            ['min' => 0, 'max' => 23]
+            'select',
+            [
+                'options' => array_combine(
+                    range(0, 23),
+                    array_map(fn($h) => sprintf('%02d', $h), range(0, 23))
+                ),
+            ]
         );
+
+        /** First-run minute dropdown (00-59) */
         $this->add_field(
             self::FIELD_MIN,
             __('First Post Minute (0–59)', 'bwpp'),
             self::SECTION_SCHEDULE,
-            'number',
-            ['min' => 0, 'max' => 59]
+            'select',
+            [
+                'options' => array_combine(
+                    range(0, 59),
+                    array_map(fn($m) => sprintf('%02d', $m), range(0, 59))
+                ),
+            ]
         );
 
         /* ---------- Post-formatting section --------------------------- */
