@@ -1,14 +1,10 @@
 <?php
 
 /**
- * Downloads and parses **Weather‑Display** *clientraw.txt* files.
- *
- * @link https://www.weather-watch.com/smf/index.php/topic,146465.0.html (spec)
- *
- * The file contains a single line of ~1600 space‑delimited values.  For our
- * purposes we map only the handful of fields required for posting to Bluesky
- * (temperature, wind, humidity, pressure, rain, description).  Additional
- * fields can easily be added by updating the `$map` below.
+ * File: includes/Core/ClientrawParser.php
+ * Fetches & converts Weather-Display “clientraw.txt” into a tidy array that
+ * Formatter understands.  Results are cached (transient) for 5 min so repeated
+ * AJAX previews don’t hammer the URL.
  *
  * @package BWPP\Core
  */
@@ -17,131 +13,130 @@ namespace BWPP\Core;
 
 defined('ABSPATH') || exit;
 
-use WP_Error;
-
 final class ClientrawParser
 {
 
-    /** URL to the remote *clientraw.txt*. */
-    private string $url;
-
-    /** Parsed data cache. */
-    private array $data = [];
+    /*--------------------------------------------------------------*/
+    /* Public API                                                   */
+    /*--------------------------------------------------------------*/
 
     /**
-     * @param string $url Public URL to *clientraw.txt* (must be HTTP/HTTPS).
-     */
-    public function __construct(string $url)
-    {
-        $this->url = esc_url_raw($url);
-    }
-
-    /* --------------------------------------------------------------------- */
-    /* –– PUBLIC API ––                                                      */
-    /* --------------------------------------------------------------------- */
-
-    /**
-     * Return an associative array of weather metrics or `false` on failure.
+     * Download + parse clientraw.txt.
      *
-     * Keys returned (all numeric values are *floats*):
-     *  - temperature  (°C)
-     *  - wind_direction (°)
-     *  - wind_speed   (knots)
-     *  - humidity     (%)
-     *  - pressure     (hPa)
-     *  - rain_today   (mm)
-     *  - weather_desc (string)
-     *
-     * @return array|false
+     * @param string $url Full URL to clientraw.txt
+     * @return array|false  Parsed associative array, or false on failure.
      */
-    public function get_weather_data()
+    public static function fetch(string $url)
     {
-        if (! empty($this->data)) {
-            return $this->data;
-        }
 
-        $raw = $this->download();
-        if (is_wp_error($raw)) {
+        if (empty($url)) {
             return false;
         }
 
-        $parts = explode(' ', trim($raw));
-        if (count($parts) < 50) {
-            return false; // Not enough fields.
+        $key   = 'bwpp_clientraw_' . md5($url);
+        $cache = get_transient($key);
+        if ($cache) {
+            return $cache;
         }
 
-        // Map raw positions ➜ named keys. See spec for full index list.
-        $map = [
-            'temperature'   => 4,  // Outdoor temperature (°C)
-            'wind_direction' => 3,  // Wind direction (degrees)
-            'wind_speed'    => 1,  // Wind speed (knots)
-            'humidity'      => 5,  // Outdoor humidity (%)
-            'pressure'      => 6,  // Barometer (hPa)
-            'rain_today'    => 7,  // Rain today (mm)
-            'weather_desc'  => 49, // Description text
-        ];
-
-        foreach ($map as $key => $index) {
-            $value = $parts[$index] ?? null;
-            // Cast numeric values.
-            if (in_array($key, ['temperature', 'wind_direction', 'wind_speed', 'humidity', 'pressure', 'rain_today'], true)) {
-                $value = is_numeric($value) ? 0 + $value : null; // Force numeric or null.
-            }
-            $this->data[$key] = $value;
-        }
-
-        return $this->data;
-    }
-
-    /* --------------------------------------------------------------------- */
-    /* –– STATIC HELPERS ––                                                  */
-    /* --------------------------------------------------------------------- */
-
-    /**
-     * Converts degrees to 16‑point compass (N, NNE, …).
-     *
-     * @param float|int $degrees
-     */
-    public static function degrees_to_compass($degrees): string
-    {
-        $dirs    = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-        $degrees = (float) $degrees;
-        return $dirs[((int) round($degrees / 22.5)) % 16];
-    }
-
-    /* --------------------------------------------------------------------- */
-    /* –– INTERNALS ––                                                       */
-    /* --------------------------------------------------------------------- */
-
-    /**
-     * Download the remote file with WP‑HTTP, returning raw string content or
-     * WP_Error on failure.
-     */
-    private function download()
-    {
-        if (empty($this->url)) {
-            return new WP_Error('bwpp_invalid_url', __('Invalid clientraw.txt URL', 'bwpp'));
-        }
-
-        $response = wp_remote_get($this->url, [
+        $response = wp_remote_get($url, [
             'timeout' => 10,
-            'user-agent' => 'BWPP/' . (defined('BWPP_VERSION') ? BWPP_VERSION : 'dev'),
+            'user-agent' => 'BWPP/1.0 (+https://wordpress.org)',
         ]);
 
-        if (is_wp_error($response)) {
-            return $response;
+        if (
+            is_wp_error($response)
+            || wp_remote_retrieve_response_code($response) !== 200
+        ) {
+            return false;
         }
 
-        $code = wp_remote_retrieve_response_code($response);
-        if (200 !== $code) {
-            return new WP_Error('bwpp_http_error', sprintf(__('clientraw.txt HTTP error: %d', 'bwpp'), $code));
+        $body = trim(wp_remote_retrieve_body($response));
+        $parts = preg_split('/\s+/', $body);
+        if (count($parts) < 200) {         // clientraw has 200+ fields
+            return false;
         }
 
-        $body = wp_remote_retrieve_body($response);
-        if (! is_string($body) || '' === $body) {
-            return new WP_Error('bwpp_empty_body', __('Empty response from clientraw.txt', 'bwpp'));
-        }
+        $data = self::map_fields($parts);
 
-        return $body;
+        // 5-minute cache
+        set_transient($key, $data, 5 * MINUTE_IN_SECONDS);
+
+        return $data;
+    }
+
+    /*--------------------------------------------------------------*/
+    /* Internal helpers                                             */
+    /*--------------------------------------------------------------*/
+
+    /**
+     * Convert raw numeric slots into friendly keys the Formatter expects.
+     *
+     * Weather-Display clientraw index reference:
+     *   3  = temp °F,  4 = humidity %,  1 = wind mph, 166 = gust mph today,
+     *   0  = wind direction deg,  5 = pressure hPa,  7 = rain today inches,
+     * 147  = dew °F,  32/33 = max/min temp F today, 44 = weather description.
+     *
+     * @param string[] $p Row array.
+     * @return array
+     */
+    private static function map_fields(array $p): array
+    {
+
+        $temp_f = (float) $p[3];
+        $temp_c = ($temp_f - 32) * 5 / 9;
+
+        $dew_f = (float) $p[147];
+        $dew_c = ($dew_f - 32) * 5 / 9;
+
+        $dir_deg = (int) $p[0];
+
+        return [
+            // Temperatures
+            'temp_c'      => round($temp_c, 1),
+            'temp_f'      => round($temp_f, 1),
+            'dew_c'       => round($dew_c, 1),
+            'dew_f'       => round($dew_f, 1),
+            'temp_max_c'  => round(((float) $p[32] - 32) * 5 / 9, 1),
+            'temp_max_f'  => (float) $p[32],
+            'temp_min_c'  => round(((float) $p[33] - 32) * 5 / 9, 1),
+            'temp_min_f'  => (float) $p[33],
+
+            // Wind
+            'wind_dir_deg' => $dir_deg,
+            'wind_dir_txt' => self::degrees_to_compass($dir_deg),
+            'wind_kts'     => round((float) $p[1] * 0.868976, 1),
+            'gust_kts'     => round((float) $p[166] * 0.868976, 1),
+
+            // Others
+            'humidity'     => (int) $p[4],
+            'pressure_hpa' => round((float) $p[5], 1),
+            'rain_mm'      => round((float) $p[7] * 25.4, 1),
+            'wx_desc'      => sanitize_text_field($p[44]),
+        ];
+    }
+
+    private static function degrees_to_compass(int $deg): string
+    {
+        $dirs = [
+            'N',
+            'NNE',
+            'NE',
+            'ENE',
+            'E',
+            'ESE',
+            'SE',
+            'SSE',
+            'S',
+            'SSW',
+            'SW',
+            'WSW',
+            'W',
+            'WNW',
+            'NW',
+            'NNW'
+        ];
+        return $dirs[(int) floor(($deg / 22.5) + 0.5) % 16];
     }
 }
+// EOF
