@@ -5,7 +5,7 @@
  * Root bootstrap for *Bluesky Weather Poster Plus*.
  *
  * Plugin Name:  Bluesky Weather Poster Plus
- * Description:  Auto-post Weather-Display clientraw data (and webcam snapshot) to Bluesky.
+ * Description:  Auto-post Weather-Display data (and webcam snapshot) to Bluesky.
  * Version:      1.0.0
  * Author:       Your Name
  * License:      GPL-2.0+
@@ -43,9 +43,20 @@ add_action('plugins_loaded', static function () {
 });
 
 /*------------------------------------------------------------------
- * Lifecycle hooks
+ * Lifecycle hooks (call instance methods via wrapper)
  *----------------------------------------------------------------*/
-register_activation_hook(__FILE__,   ['\BWPP\Core\Plugin', 'on_activate']);
-register_deactivation_hook(__FILE__, ['\BWPP\Core\Plugin', 'on_deactivate']);
+register_activation_hook(
+    __FILE__,
+    static function () {
+        \BWPP\Core\Plugin::get_instance()->on_activate();
+    }
+);
+
+register_deactivation_hook(
+    __FILE__,
+    static function () {
+        \BWPP\Core\Plugin::get_instance()->on_deactivate();
+    }
+);
 
 // EOF
