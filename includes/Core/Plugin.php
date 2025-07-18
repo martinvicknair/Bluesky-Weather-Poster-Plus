@@ -2,7 +2,7 @@
 
 /**
  * File: includes/Core/Plugin.php
- * Bootstrap singleton ― wires every BWPP module together.
+ * Bootstrap singleton – wires every BWPP module together.
  *
  * @package BWPP\Core
  */
@@ -10,6 +10,8 @@
 namespace BWPP\Core;
 
 defined('ABSPATH') || exit;
+
+use BWPP\Admin\{Settings, Ajax};
 
 final class Plugin
 {
@@ -28,6 +30,8 @@ final class Plugin
     private function __construct()
     {
         $this->init_hooks();
+
+        // plugin lifecycle
         register_activation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_activate']);
         register_deactivation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_deactivate']);
     }
@@ -39,16 +43,16 @@ final class Plugin
     private function init_hooks(): void
     {
 
-        // Make our custom cron intervals available **before** we register jobs.
+        // custom cron intervals first
         add_filter('cron_schedules', ['\BWPP\Core\Cron', 'add_custom_schedules']);
 
-        // Core posting hook.
+        // posting callback
         add_action(Cron::EVENT_HOOK, ['\BWPP\Core\Cron', 'post_weather_update']);
 
-        // Admin only.
+        // admin-only modules
         if (is_admin()) {
-            new \BWPP\Admin\Settings();
-            new \BWPP\Admin\Ajax();
+            Settings::instance(); // <<< fixed: use singleton
+            new Ajax();
         }
     }
 
@@ -58,7 +62,7 @@ final class Plugin
 
     public function on_activate(): void
     {
-        Cron::register();                  // schedule first run
+        Cron::register();
         flush_rewrite_rules();
     }
 
