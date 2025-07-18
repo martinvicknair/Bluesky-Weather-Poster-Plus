@@ -78,10 +78,13 @@ final class Settings
         if ('settings_page_' . self::PAGE_SLUG !== $hook) {
             return;
         }
+        // wp-api prints the wpApiSettings.nonce bootstrap we need.
+        wp_enqueue_script('wp-api');
+
         wp_enqueue_script(
             'bwpp-admin',
             plugins_url('assets/js/bwpp-admin.js', BWPP_PATH . 'bluesky-weather-poster-plus.php'),
-            ['wp-api-request', 'jquery'],
+            ['wp-api', 'jquery'],          // ← depend on wp-api, not wp-api-request
             BWPP_VERSION,
             true
         );
