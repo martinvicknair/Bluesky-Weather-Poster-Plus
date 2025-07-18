@@ -43,7 +43,11 @@ final class Plugin
     private function init_hooks(): void
     {
 
-        // custom cron intervals first
+        // ── make sure Admin classes are always available ──────────
+        require_once BWPP_PATH . 'includes/Admin/Settings.php';
+        require_once BWPP_PATH . 'includes/Admin/Ajax.php';
+
+        // custom cron intervals
         add_filter('cron_schedules', ['\BWPP\Core\Cron', 'add_custom_schedules']);
 
         // posting callback
@@ -51,11 +55,10 @@ final class Plugin
 
         // admin-only modules
         if (is_admin()) {
-            Settings::instance(); // <<< fixed: use singleton
-            new Ajax();
+            \BWPP\Admin\Settings::instance();
+            new \BWPP\Admin\Ajax();
         }
     }
-
     /*--------------------------------------------------------------*/
     /* Lifecycle                                                    */
     /*--------------------------------------------------------------*/
