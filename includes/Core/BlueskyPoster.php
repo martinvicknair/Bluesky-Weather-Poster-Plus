@@ -115,18 +115,24 @@ final class BlueskyPoster
             return $token;
         }
 
-        /* ----- convert external webcam link to image embed ---------- */
+        /* ----- convert external webcam link to inline image embed ---------- */
         if (
             isset($payload['embed']['external']['uri']) &&
             filter_var($payload['embed']['external']['uri'], FILTER_VALIDATE_URL)
         ) {
+
             $img_url = $payload['embed']['external']['uri'];
             $img_res = wp_remote_get($img_url, ['timeout' => 15]);
 
             if (! is_wp_error($img_res) && wp_remote_retrieve_response_code($img_res) === 200) {
-                $mime = wp_remote_retrieve_header($img_res, 'content-type') ?: 'image/jpeg';
-                $blob = self::upload_blob($token, $mime, wp_remote_retrieve_body($img_res));
 
+                $mime = wp_remote_retrieve_header($img_res, 'content-type') ?: 'image/jpeg';
+                $bytes = wp_remote_retrieve_body($img_res);
+
+                /* NEW: shrink if needed */
+                $bytes = self::shrink_if_needed($bytes, $mime);
+
+                $blob = self::upload_blob($token, $mime, $bytes);
                 if (! is_wp_error($blob) && isset($blob['blob'])) {
                     $payload['embed'] = [
                         '$type'  => 'app.bsky.embed.images',
@@ -140,6 +146,8 @@ final class BlueskyPoster
                 }
             }
         }
+        /* ------------------------------------------------------------------ */
+
         /* ------------------------------------------------------------ */
 
         $api  = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
