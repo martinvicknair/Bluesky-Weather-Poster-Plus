@@ -2,7 +2,7 @@
 
 /**
  * File: includes/Core/Plugin.php
- * Bootstrap singleton – orchestrates all components.
+ * Bootstrap singleton – orchestrates all BWPP components.
  *
  * @package BWPP\Core
  */
@@ -16,6 +16,9 @@ use BWPP\Admin\{Settings, Ajax};
 final class Plugin
 {
 
+    /*--------------------------------------------------------------------
+	 * Singleton
+	 *------------------------------------------------------------------*/
     private static ?self $instance = null;
 
     public static function get_instance(): self
@@ -25,25 +28,35 @@ final class Plugin
 
     private function __construct()
     {
-        // Always load Admin classes so they can hook REST in any context.
+
+        /* Ensure Admin classes are available everywhere
+		   (autoload fallback may not cover them). */
         require_once BWPP_PATH . 'includes/Admin/Settings.php';
         require_once BWPP_PATH . 'includes/Admin/Ajax.php';
 
-        new Ajax();                 // ← instantiate **before** hooks run
+        /* Instantiate early so REST routes register before router builds. */
+        new Ajax();
         Settings::instance();
 
         $this->init_hooks();
-
-        register_activation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_activate']);
-        register_deactivation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_deactivate']);
     }
 
+    /*--------------------------------------------------------------------
+	 * WP Hooks
+	 *------------------------------------------------------------------*/
     private function init_hooks(): void
     {
+
+        // custom cron intervals
         add_filter('cron_schedules', ['\BWPP\Core\Cron', 'add_custom_schedules']);
-        add_action(Cron::EVENT_HOOK,  ['\BWPP\Core\Cron', 'post_weather_update']);
+
+        // posting callback
+        add_action(Cron::EVENT_HOOK, ['\BWPP\Core\Cron', 'post_weather_update']);
     }
 
+    /*--------------------------------------------------------------------
+	 * Lifecycle handlers (called by bootstrap wrappers)
+	 *------------------------------------------------------------------*/
     public function on_activate(): void
     {
         Cron::register();
