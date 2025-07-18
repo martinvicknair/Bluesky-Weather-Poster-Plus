@@ -1,8 +1,15 @@
 <?php
 
 /**
- * Converts parsed weather data into a Bluesky-ready post string + AT Proto
- * *facets* array (for hashtags, links) and optional *embed* block.
+ * File: includes/Core/Formatter.php
+ * Turns parsed weather data + user settings into a Bluesky-ready payload.
+ *
+ * Returns an array with:
+ *   [
+ *     'text'   => 'string',             // post body
+ *     'facets' => [ … ],                // hashtag facets (optional)
+ *     'embed'  => [ … ] | null,         // external or image embed
+ *   ]
  *
  * @package BWPP\Core
  */
@@ -14,134 +21,203 @@ defined('ABSPATH') || exit;
 final class Formatter
 {
 
-    /** Approximate max length Bluesky allows (there’s no strict doc yet). */
-    private const MAX_LEN = 300;
+    /*------------------------------------------------------------------*/
+    /* Public API                                                       */
+    /*------------------------------------------------------------------*/
 
     /**
-     * Build text + facets from data and user settings.
+     * Build the Bluesky record content.
      *
-     * @param array       $data         Parsed clientraw values.
-     * @param string|null $station_url  Link to user’s weather page (optional).
-     * @param array       $settings     Settings array (already sanitized).
-     *
-     * @return array{ text:string, facets?:array, embed?:array }
+     * @param array $wx           Parsed clientraw array.
+     * @param array $settings     Raw bwpp_settings option.
+     * @return array{ text:string, facets:array<int,mixed>, embed:array<string,mixed>|null }
      */
-    public static function format_weather_output_with_facets(array $data, ?string $station_url = '', array $settings = []): array
+    public static function build(array $wx, array $settings): array
     {
-        // Defaults come from Settings sanitize() when missing.
-        $units  = $settings['bwp_units']       ?? 'both';
-        $prefix = trim($settings['bwp_post_prefix'] ?? __('Weather Update', 'bwpp'));
-        $tags   = $settings['bwp_hashtags']    ?? '';
 
-        /* ----------------------------------------------------------------- */
-        /* –– UNIT CONVERSIONS ––                                            */
-        /* ----------------------------------------------------------------- */
-        $c    = $data['temperature']    ?? null;
-        $kts  = $data['wind_speed']     ?? null;
-        $hPa  = $data['pressure']       ?? null;
-        $mm   = $data['rain_today']     ?? null;
+        $prefix   = $settings['bwp_post_prefix'] ?? 'Current conditions:';
+        $units    = $settings['bwp_units'] ?? 'both';
+        $hashtags = self::prepare_hashtags($settings['bwp_hashtags'] ?? '');
+        $include  = $settings['bwp_content_fields'] ?? ['temp' => 1]; // at least temp
+        $station_url = $settings['bwp_station_url'] ?? '';
+        $station_txt = $settings['bwp_station_text'] ?? '';
 
-        // Imperial conversions.
-        $f    = null === $c   ? null : ($c * 9 / 5) + 32;
-        $mph  = null === $kts ? null : $kts * 1.15078;
-        $inhg = null === $hPa ? null : $hPa * 0.02953;
-        $in   = null === $mm  ? null : $mm * 0.0393701;
-
-        // Wind direction.
-        $dir  = isset($data['wind_direction']) ? ClientrawParser::degrees_to_compass($data['wind_direction']) : null;
-
-        /* ----------------------------------------------------------------- */
-        /* –– STRING ASSEMBLY ––                                             */
-        /* ----------------------------------------------------------------- */
+        // ------------------------------------------------------------------
+        // 1. Data line
+        // ------------------------------------------------------------------
         $parts = [];
-        if ($units === 'metric' || $units === 'both') {
-            if (null !== $c) {
-                $parts[] = sprintf(__('Temp: %.1f°C', 'bwpp'), $c);
-            }
-            if (null !== $kts) {
-                $parts[] = sprintf(__('Wind: %.0f kt', 'bwpp'), $kts) . ($dir ? " $dir" : '');
-            }
-            if (null !== $hPa) {
-                $parts[] = sprintf(__('Pres: %.0f hPa', 'bwpp'), $hPa);
-            }
-            if (null !== $mm) {
-                $parts[] = sprintf(__('Rain: %.1f mm', 'bwpp'), $mm);
-            }
+
+        // Temperature block
+        if (! empty($include['temp']) && isset($wx['temp_c'], $wx['temp_f'])) {
+            $parts[] = self::format_temp($wx, $units);
         }
-        if ($units === 'imperial' || $units === 'both') {
-            $imperial = [];
-            if (null !== $f) {
-                $imperial[] = sprintf(__('%.1f°F', 'bwpp'), $f);
-            }
-            if (null !== $mph) {
-                $imperial[] = sprintf(__('%.0f mph', 'bwpp'), $mph);
-            }
-            if (null !== $inhg) {
-                $imperial[] = sprintf(__('%.2f inHg', 'bwpp'), $inhg);
-            }
-            if (null !== $in) {
-                $imperial[] = sprintf(__('%.2f in', 'bwpp'), $in);
-            }
-            if ($imperial) {
-                $parts[] = '(' . implode(' | ', $imperial) . ')';
-            }
+        if (! empty($include['windchill']) && isset($wx['windchill_c'])) {
+            $parts[] = sprintf(
+                _x('Feels like %s', 'windchill', 'bwpp'),
+                self::unit_select($wx['windchill_c'], $wx['windchill_f'], $units, 1)
+            );
+        }
+        if (! empty($include['dew']) && isset($wx['dew_c'])) {
+            $parts[] = sprintf(
+                _x('Dew pt %s', 'dew point', 'bwpp'),
+                self::unit_select($wx['dew_c'], $wx['dew_f'], $units, 1)
+            );
+        }
+        if (! empty($include['humidex']) && isset($wx['humidex'])) {
+            $parts[] = sprintf(
+                _x('Humidex %d', 'humidex', 'bwpp'),
+                round($wx['humidex'])
+            );
         }
 
-        // Humidity and description are unit-agnostic.
-        if (isset($data['humidity'])) {
-            $parts[] = sprintf(__('RH: %d%%', 'bwpp'), (int) $data['humidity']);
+        // Max/min temps today
+        if (! empty($include['temp_max']) && isset($wx['temp_max_c'])) {
+            $parts[] = sprintf(
+                _x('↑%s', 'max temperature', 'bwpp'),
+                self::unit_select($wx['temp_max_c'], $wx['temp_max_f'], $units, 1)
+            );
         }
-        if (! empty($data['weather_desc'])) {
-            $parts[] = $data['weather_desc'];
-        }
-
-        // Collect tags: convert comma-separated list to #tag format, ensure spaces.
-        $tag_str = '';
-        if ($tags) {
-            $tags_arr = array_filter(array_map('trim', explode(',', $tags)));
-            if ($tags_arr) {
-                $tag_str = ' ' . implode(' ', array_map(static fn($t) => ('#' === $t[0] ? $t : '#' . $t), $tags_arr));
-            }
+        if (! empty($include['temp_min']) && isset($wx['temp_min_c'])) {
+            $parts[] = sprintf(
+                _x('↓%s', 'min temperature', 'bwpp'),
+                self::unit_select($wx['temp_min_c'], $wx['temp_min_f'], $units, 1)
+            );
         }
 
-        // Build main text.
-        $text = trim($prefix . ': ' . implode(', ', $parts) . $tag_str);
-
-        // Ensure length <= MAX_LEN, naive clip if needed.
-        if (mb_strlen($text) > self::MAX_LEN) {
-            $text = mb_substr($text, 0, self::MAX_LEN - 1) . '…';
+        // Wind
+        if (! empty($include['wind_dir']) && isset($wx['wind_dir_txt'])) {
+            $parts[] = sprintf(
+                _x('Wind %s', 'wind direction', 'bwpp'),
+                $wx['wind_dir_txt']
+            );
+        }
+        if (! empty($include['wind_speed']) && isset($wx['wind_kts'])) {
+            $parts[] = sprintf(
+                _x('%s kts', 'wind speed', 'bwpp'),
+                round($wx['wind_kts'])
+            );
+        }
+        if (! empty($include['wind_gust']) && isset($wx['gust_kts'])) {
+            $parts[] = sprintf(
+                _x('Gust %s kts', 'wind gust', 'bwpp'),
+                round($wx['gust_kts'])
+            );
         }
 
-        /* Facets & embed --------------------------------------------------- */
-        $facets = [];
-        $embed  = null;
-
-        // Hashtags facets (Bluesky needs start/end byte offsets).
-        if ($tag_str) {
-            // Find each #tag in the text.
-            preg_match_all('/#\w+/u', $text, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as [$tag, $offset]) {
-                $facets[] = [
-                    'index' => ['byteStart' => $offset, 'byteEnd' => $offset + strlen($tag)],
-                    'features' => [
-                        ['$type' => 'app.bsky.richtext.facet#tag', 'tag' => ltrim($tag, '#')],
-                    ],
-                ];
-            }
+        // Other
+        if (! empty($include['humidity']) && isset($wx['humidity'])) {
+            $parts[] = sprintf(
+                _x('RH %d%%', 'relative humidity', 'bwpp'),
+                round($wx['humidity'])
+            );
+        }
+        if (! empty($include['pressure']) && isset($wx['pressure_hpa'])) {
+            $parts[] = sprintf(
+                _x('Pressure %.1f hPa', 'pressure', 'bwpp'),
+                $wx['pressure_hpa']
+            );
+        }
+        if (! empty($include['rain']) && isset($wx['rain_mm'])) {
+            $parts[] = sprintf(
+                _x('Rain %.1f mm', 'rain today', 'bwpp'),
+                $wx['rain_mm']
+            );
+        }
+        if (! empty($include['desc']) && isset($wx['wx_desc'])) {
+            $parts[] = $wx['wx_desc'];
         }
 
-        // Station URL as external embed (if provided).
+        // ------------------------------------------------------------------
+        // Assemble full text
+        // ------------------------------------------------------------------
+        $text = trim($prefix) . ' ' . implode(' · ', $parts);
+
+        // Append station link
         if ($station_url) {
+            $link_text = $station_txt ?: $station_url;
+            $text     .= ' ' . $link_text . ' ' . $station_url;
+        }
+
+        // Append hashtags
+        if ($hashtags) {
+            $text .= ' ' . implode(' ', $hashtags);
+        }
+
+        // Facets for tags
+        $facets = self::build_facets($text, $hashtags);
+
+        // ------------------------------------------------------------------
+        // Optional webcam image embed
+        // ------------------------------------------------------------------
+        $embed = null;
+        if (! empty($settings['bwp_webcam_url'])) {
             $embed = [
-                '$type' => 'app.bsky.embed.external',
+                '$type'   => 'app.bsky.embed.external',
                 'external' => [
-                    'uri'         => esc_url_raw($station_url),
-                    'title'       => __('Weather Station', 'bwpp'),
-                    'description' => __('Full data & charts', 'bwpp'),
+                    'uri'         => $settings['bwp_webcam_url'],
+                    'title'       => $settings['bwp_webcam_alt'] ?: __('Webcam snapshot', 'bwpp'),
+                    'description' => '',
                 ],
             ];
         }
 
+        // Ensure length ≤ 300. Simple hard truncate (safe because hashtags added last).
+        if (mb_strlen($text) > 300) {
+            $text = mb_substr($text, 0, 297) . '…';
+        }
+
         return compact('text', 'facets', 'embed');
+    }
+
+    /*------------------------------------------------------------------*/
+    /* Helpers                                                           */
+    /*------------------------------------------------------------------*/
+
+    private static function prepare_hashtags(string $raw): array
+    {
+        $tags = array_filter(array_map('trim', explode(',', $raw)));
+        $tags = array_map(static function ($t) {
+            $t = ltrim($t, '#');
+            return '#' . preg_replace('/\s+/', '', $t);
+        }, $tags);
+        return $tags;
+    }
+
+    private static function build_facets(string $body, array $tags): array
+    {
+        $facets = [];
+        foreach ($tags as $tag) {
+            $pos = mb_strpos($body, $tag);
+            if (false === $pos) {
+                continue;
+            }
+            $facets[] = [
+                'index' => ['byteStart' => $pos, 'byteEnd' => $pos + mb_strlen($tag)],
+                'features' => [
+                    ['$type' => 'app.bsky.richtext.facet#tag', 'tag' => ltrim($tag, '#')],
+                ],
+            ];
+        }
+        return $facets;
+    }
+
+    private static function format_temp(array $wx, string $units): string
+    {
+        return sprintf(
+            '%s',
+            self::unit_select($wx['temp_c'], $wx['temp_f'], $units, 1)
+        );
+    }
+
+    private static function unit_select($c, $f, string $units, int $dec = 0): string
+    {
+        switch ($units) {
+            case 'metric':
+                return sprintf('%.' . $dec . 'f °C', $c);
+            case 'imperial':
+                return sprintf('%.' . $dec . 'f °F', $f);
+            default: // both
+                return sprintf('%.' . $dec . 'f °C / %.' . $dec . 'f °F', $c, $f);
+        }
     }
 }
