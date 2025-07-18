@@ -2,7 +2,7 @@
 
 /**
  * File: includes/Core/Plugin.php
- * Bootstrap singleton – wires every BWPP module together.
+ * Bootstrap singleton – orchestrates all components.
  *
  * @package BWPP\Core
  */
@@ -16,10 +16,6 @@ use BWPP\Admin\{Settings, Ajax};
 final class Plugin
 {
 
-    /*--------------------------------------------------------------*/
-    /* Singleton                                                    */
-    /*--------------------------------------------------------------*/
-
     private static ?self $instance = null;
 
     public static function get_instance(): self
@@ -29,39 +25,24 @@ final class Plugin
 
     private function __construct()
     {
+        // Always load Admin classes so they can hook REST in any context.
+        require_once BWPP_PATH . 'includes/Admin/Settings.php';
+        require_once BWPP_PATH . 'includes/Admin/Ajax.php';
+
+        new Ajax();                 // ← instantiate **before** hooks run
+        Settings::instance();
+
         $this->init_hooks();
 
-        // plugin lifecycle
         register_activation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_activate']);
         register_deactivation_hook(BWPP_PATH . 'bluesky-weather-poster-plus.php', [$this, 'on_deactivate']);
     }
 
-    /*--------------------------------------------------------------*/
-    /* Hooks                                                        */
-    /*--------------------------------------------------------------*/
-
     private function init_hooks(): void
     {
-
-        // ── make sure Admin classes are always available ──────────
-        require_once BWPP_PATH . 'includes/Admin/Settings.php';
-        require_once BWPP_PATH . 'includes/Admin/Ajax.php';
-
-        // custom cron intervals
         add_filter('cron_schedules', ['\BWPP\Core\Cron', 'add_custom_schedules']);
-
-        // posting callback
-        add_action(Cron::EVENT_HOOK, ['\BWPP\Core\Cron', 'post_weather_update']);
-
-        // admin-only modules
-        if (is_admin()) {
-            \BWPP\Admin\Settings::instance();
-            new \BWPP\Admin\Ajax();
-        }
+        add_action(Cron::EVENT_HOOK,  ['\BWPP\Core\Cron', 'post_weather_update']);
     }
-    /*--------------------------------------------------------------*/
-    /* Lifecycle                                                    */
-    /*--------------------------------------------------------------*/
 
     public function on_activate(): void
     {
