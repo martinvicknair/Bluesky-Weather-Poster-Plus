@@ -79,16 +79,19 @@ final class Settings
             return;
         }
 
-        // Ensures `window.wpApiSettings.nonce` is present:
-        wp_enqueue_script('wp-api-request');
-
         wp_enqueue_script(
             'bwpp-admin',
             plugins_url('assets/js/bwpp-admin.js', BWPP_PATH . 'bluesky-weather-poster-plus.php'),
-            ['wp-api-request', 'jquery'],
+            ['jquery'],
             BWPP_VERSION,
             true
         );
+
+        // Pass rest root + nonce to JS
+        wp_localize_script('bwpp-admin', 'BWPP_Admin', [
+            'root'  => esc_url_raw(rest_url()),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ]);
     }
 
     /*--------------------------------------------------------------------
