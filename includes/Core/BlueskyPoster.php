@@ -60,6 +60,49 @@ final class BlueskyPoster
     /*--------------------------------------------------------------------
 	 * Internal helpers
 	 *------------------------------------------------------------------*/
+    /**
+     * Ensure an image is ≤ 1 MB by down-scaling if needed.
+     *
+     * @param string $raw        Original image bytes.
+     * @param string &$mime_out  Updated mime (always image/jpeg after resize).
+     * @return string            Safe bytes ready for upload.
+     */
+    private static function shrink_if_needed(string $raw, string &$mime_out): string
+    {
+
+        // already under 1 MB → return untouched
+        if (strlen($raw) <= 1_000_000) {
+            return $raw;
+        }
+        $tmp = wp_tempnam();                       // create temp file
+        file_put_contents($tmp, $raw);
+
+        $editor = wp_get_image_editor($tmp);
+        if (is_wp_error($editor)) {            // fallback: send original
+            return $raw;
+        }
+
+        // constrain longest edge to 1280 px
+        $size = $editor->get_size();
+        $max  = max($size['width'], $size['height']);
+        if ($max > 1280) {
+            $editor->resize(
+                $size['width'] > $size['height'] ? 1280 : null,
+                $size['height'] > $size['width'] ? 1280 : null,
+                false
+            );
+        }
+
+        $editor->set_quality(75);
+        $shrunken = $editor->save(null, 'image/jpeg');
+        if (! is_wp_error($shrunken) && filesize($shrunken['path']) <= 1_000_000) {
+            $mime_out = 'image/jpeg';
+            return file_get_contents($shrunken['path']);
+        }
+        // couldn’t get under 1 MB → return original
+        return $raw;
+    }
+
     private static function post_single_account(string $handle, string $app_pw, array $payload)
     {
 
