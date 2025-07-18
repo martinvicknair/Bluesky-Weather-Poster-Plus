@@ -2,9 +2,7 @@
 
 /**
  * File: includes/Admin/Settings.php
- * Admin → Settings page + Settings API registration.
- * Adds all legacy-feature controls: second account, webcam image, station-link
- * text, frequency dropdown, and granular “post-content” checkboxes.
+ * Admin → Settings page, Settings API registration, live preview assets.
  *
  * @package BWPP\Admin
  */
@@ -18,10 +16,19 @@ use BWPP\Core\Cron;
 final class Settings
 {
 
-    /*--------------------------------------------------------------------*/
-    /* Constants / IDs                                                    */
-    /*--------------------------------------------------------------------*/
+    /*--------------------------------------------------------------------
+	 * Singleton
+	 *------------------------------------------------------------------*/
+    private static ?self $instance = null;
 
+    public static function instance(): self
+    {
+        return self::$instance ??= new self();
+    }
+
+    /*--------------------------------------------------------------------
+	 * Constants / IDs
+	 *------------------------------------------------------------------*/
     public const OPTION_KEY = 'bwpp_settings';
     private const PAGE_SLUG = 'bwpp-settings';
 
@@ -55,20 +62,34 @@ final class Settings
     private const FIELD_TAGS           = 'bwp_hashtags';
     private const FIELD_FIELDS         = 'bwp_content_fields';
 
-    /*--------------------------------------------------------------------*/
-    /* Constructor                                                        */
-    /*--------------------------------------------------------------------*/
-
-    public function __construct()
+    /*--------------------------------------------------------------------
+	 * Constructor – hooks & assets
+	 *------------------------------------------------------------------*/
+    private function __construct()
     {
-        add_action('admin_menu',  [$this, 'add_menu']);
-        add_action('admin_init',  [$this, 'register_settings']);
+        add_action('admin_menu',            [$this, 'add_menu']);
+        add_action('admin_init',            [$this, 'register_settings']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue']);
     }
 
-    /*--------------------------------------------------------------------*/
-    /* Menu                                                               */
-    /*--------------------------------------------------------------------*/
+    /** Enqueue JS only on our settings screen */
+    public function enqueue(string $hook): void
+    {
+        if ('settings_page_' . self::PAGE_SLUG !== $hook) {
+            return;
+        }
+        wp_enqueue_script(
+            'bwpp-admin',
+            plugins_url('assets/js/bwpp-admin.js', BWPP_PATH . 'bluesky-weather-poster-plus.php'),
+            ['wp-api-request', 'jquery'],
+            BWPP_VERSION,
+            true
+        );
+    }
 
+    /*--------------------------------------------------------------------
+	 * Menu
+	 *------------------------------------------------------------------*/
     public function add_menu(): void
     {
         add_options_page(
@@ -80,15 +101,15 @@ final class Settings
         );
     }
 
-    /*--------------------------------------------------------------------*/
-    /* Settings API                                                       */
-    /*--------------------------------------------------------------------*/
-
+    /*--------------------------------------------------------------------
+	 * Settings API
+	 *------------------------------------------------------------------*/
     public function register_settings(): void
     {
+
         register_setting('bwpp', self::OPTION_KEY, [$this, 'sanitize']);
 
-        /* ---------- General section ----------------------------------- */
+        /* ---------- General section --------------------------------- */
         add_settings_section(
             self::SECTION_GENERAL,
             __('General', 'bwpp'),
@@ -110,7 +131,7 @@ final class Settings
             'password'
         );
 
-        // second account group
+        // second account
         $this->add_field(
             self::FIELD_SECOND_TOGGLE,
             __('Enable posting to a second Bluesky account', 'bwpp'),
@@ -130,7 +151,7 @@ final class Settings
             'password'
         );
 
-        // urls
+        // URLs
         $this->add_field(
             self::FIELD_CLIENTRAW,
             __('clientraw.txt URL', 'bwpp'),
@@ -164,7 +185,7 @@ final class Settings
             'text'
         );
 
-        /* ---------- Schedule section ---------------------------------- */
+        /* ---------- Schedule section -------------------------------- */
         add_settings_section(
             self::SECTION_SCHEDULE,
             __('Schedule', 'bwpp'),
@@ -187,12 +208,10 @@ final class Settings
             ['options' => $presets]
         );
 
-        /* ▼▼ replace the next two calls ▼▼ */
-
-        /** First-run hour dropdown (00-23) */
+        // dropdowns 00-23 / 00-59
         $this->add_field(
             self::FIELD_HOUR,
-            __('First Post Hour (0–23)', 'bwpp'),
+            __('First Post Hour', 'bwpp'),
             self::SECTION_SCHEDULE,
             'select',
             [
@@ -202,11 +221,9 @@ final class Settings
                 ),
             ]
         );
-
-        /** First-run minute dropdown (00-59) */
         $this->add_field(
             self::FIELD_MIN,
-            __('First Post Minute (0–59)', 'bwpp'),
+            __('First Post Minute', 'bwpp'),
             self::SECTION_SCHEDULE,
             'select',
             [
@@ -217,7 +234,7 @@ final class Settings
             ]
         );
 
-        /* ---------- Post-formatting section --------------------------- */
+        /* ---------- Post formatting section ------------------------- */
         add_settings_section(
             self::SECTION_POST,
             __('Post Formatting', 'bwpp'),
@@ -249,21 +266,20 @@ final class Settings
             'text'
         );
 
-        // checkbox grid for content fields
         $boxes = [
-            'temp'          => __('Temperature', 'bwpp'),
-            'windchill'     => __('Wind-chill', 'bwpp'),
-            'humidex'       => __('Humidex', 'bwpp'),
-            'dew'           => __('Dew Point', 'bwpp'),
-            'temp_max'      => __('Max Temperature Today', 'bwpp'),
-            'temp_min'      => __('Min Temperature Today', 'bwpp'),
-            'wind_dir'      => __('Wind Direction', 'bwpp'),
-            'wind_speed'    => __('Wind Speed', 'bwpp'),
-            'wind_gust'     => __('Max Gust Today', 'bwpp'),
-            'humidity'      => __('Humidity', 'bwpp'),
-            'pressure'      => __('Pressure', 'bwpp'),
-            'rain'          => __('Rain Today', 'bwpp'),
-            'desc'          => __('Weather Description', 'bwpp'),
+            'temp'       => __('Temperature', 'bwpp'),
+            'windchill'  => __('Wind-chill', 'bwpp'),
+            'humidex'    => __('Humidex', 'bwpp'),
+            'dew'        => __('Dew Point', 'bwpp'),
+            'temp_max'   => __('Max Temp Today', 'bwpp'),
+            'temp_min'   => __('Min Temp Today', 'bwpp'),
+            'wind_dir'   => __('Wind Direction', 'bwpp'),
+            'wind_speed' => __('Wind Speed', 'bwpp'),
+            'wind_gust'  => __('Max Gust Today', 'bwpp'),
+            'humidity'   => __('Humidity', 'bwpp'),
+            'pressure'   => __('Pressure', 'bwpp'),
+            'rain'       => __('Rain Today', 'bwpp'),
+            'desc'       => __('Weather Description', 'bwpp'),
         ];
         $this->add_field(
             self::FIELD_FIELDS,
@@ -274,15 +290,21 @@ final class Settings
         );
     }
 
-    /*--------------------------------------------------------------------*/
-    /* Field Helper                                                       */
-    /*--------------------------------------------------------------------*/
+    /*--------------------------------------------------------------------
+	 * Field helper
+	 *------------------------------------------------------------------*/
+    private function add_field(
+        string $id,
+        string $label,
+        string $section,
+        string $type,
+        array $args = []
+    ): void {
 
-    private function add_field(string $id, string $label, string $section, string $type, array $args = []): void
-    {
         $callback = function () use ($id, $type, $args) {
-            $opts = get_option(self::OPTION_KEY, []);
-            $val  = $opts[$id] ?? '';
+
+            $opt  = get_option(self::OPTION_KEY, []);
+            $val  = $opt[$id] ?? '';
             $name = self::OPTION_KEY . '[' . esc_attr($id) . ']';
 
             switch ($type) {
@@ -296,14 +318,13 @@ final class Settings
                     break;
 
                 case 'checkbox_group':
-                    $options = $args['options'] ?? [];
-                    foreach ($options as $key => $lab) {
-                        $checked = ! empty($val[$key]);
+                    foreach ($args['options'] ?? [] as $key => $lab) {
+                        $chk = ! empty($val[$key]);
                         printf(
-                            '<label style="display:block; margin-bottom:4px;"><input type="checkbox" name="%1$s[%2$s]" value="1" %3$s /> %4$s</label>',
+                            '<label style="display:block;margin-bottom:4px;"><input type="checkbox" name="%1$s[%2$s]" value="1" %3$s /> %4$s</label>',
                             $name,
                             esc_attr($key),
-                            checked($checked, true, false),
+                            checked($chk, true, false),
                             esc_html($lab)
                         );
                     }
@@ -312,30 +333,21 @@ final class Settings
                 case 'text':
                 case 'password':
                 case 'url':
-                case 'number':
-                    $extra = '';
-                    foreach ($args as $k => $v) {
-                        if (in_array($k, ['min', 'max', 'step'], true)) {
-                            $extra .= sprintf(' %s="%s"', esc_attr($k), esc_attr($v));
-                        }
-                    }
                     printf(
-                        '<input type="%1$s" name="%2$s" value="%3$s" class="regular-text" %4$s />',
+                        '<input type="%1$s" name="%2$s" value="%3$s" class="regular-text" />',
                         esc_attr($type),
                         $name,
-                        esc_attr($val),
-                        $extra
+                        esc_attr($val)
                     );
                     break;
 
                 case 'select':
-                    $options = $args['options'] ?? [];
                     echo '<select name="' . $name . '">';
-                    foreach ($options as $key => $lab) {
+                    foreach ($args['options'] ?? [] as $k => $lab) {
                         printf(
                             '<option value="%s" %s>%s</option>',
-                            esc_attr($key),
-                            selected($val, $key, false),
+                            esc_attr($k),
+                            selected($val, $k, false),
                             esc_html($lab)
                         );
                     }
@@ -347,81 +359,96 @@ final class Settings
         add_settings_field($id, $label, $callback, self::PAGE_SLUG, $section);
     }
 
-    /*--------------------------------------------------------------------*/
-    /* Sanitization                                                       */
-    /*--------------------------------------------------------------------*/
-
-    public function sanitize(array $input): array
+    /*--------------------------------------------------------------------
+	 * Sanitization
+	 *------------------------------------------------------------------*/
+    public function sanitize(array $in): array
     {
-        $out = [];
 
-        // primary credentials
-        $out[self::FIELD_HANDLE]  = sanitize_text_field($input[self::FIELD_HANDLE] ?? '');
-        $out[self::FIELD_APP_PW]  = sanitize_text_field($input[self::FIELD_APP_PW] ?? '');
+        $o = [];
+
+        // primary creds
+        $o[self::FIELD_HANDLE] = sanitize_text_field($in[self::FIELD_HANDLE] ?? '');
+        $o[self::FIELD_APP_PW] = sanitize_text_field($in[self::FIELD_APP_PW] ?? '');
 
         // second account
-        $out[self::FIELD_SECOND_TOGGLE] = empty($input[self::FIELD_SECOND_TOGGLE]) ? '' : '1';
-        $out[self::FIELD_SECOND_HANDLE] = sanitize_text_field($input[self::FIELD_SECOND_HANDLE] ?? '');
-        $out[self::FIELD_SECOND_APP_PW] = sanitize_text_field($input[self::FIELD_SECOND_APP_PW] ?? '');
+        $o[self::FIELD_SECOND_TOGGLE] = empty($in[self::FIELD_SECOND_TOGGLE]) ? '' : '1';
+        $o[self::FIELD_SECOND_HANDLE] = sanitize_text_field($in[self::FIELD_SECOND_HANDLE] ?? '');
+        $o[self::FIELD_SECOND_APP_PW] = sanitize_text_field($in[self::FIELD_SECOND_APP_PW] ?? '');
 
         // urls
-        $out[self::FIELD_CLIENTRAW]    = esc_url_raw($input[self::FIELD_CLIENTRAW] ?? '');
-        $out[self::FIELD_STATION]      = esc_url_raw($input[self::FIELD_STATION] ?? '');
-        $out[self::FIELD_STATION_TEXT] = sanitize_text_field($input[self::FIELD_STATION_TEXT] ?? '');
-
-        $out[self::FIELD_WEBCAM_URL] = esc_url_raw($input[self::FIELD_WEBCAM_URL] ?? '');
-        $out[self::FIELD_WEBCAM_ALT] = sanitize_text_field($input[self::FIELD_WEBCAM_ALT] ?? '');
+        $o[self::FIELD_CLIENTRAW]    = esc_url_raw($in[self::FIELD_CLIENTRAW] ?? '');
+        $o[self::FIELD_STATION]      = esc_url_raw($in[self::FIELD_STATION] ?? '');
+        $o[self::FIELD_STATION_TEXT] = sanitize_text_field($in[self::FIELD_STATION_TEXT] ?? '');
+        $o[self::FIELD_WEBCAM_URL]   = esc_url_raw($in[self::FIELD_WEBCAM_URL] ?? '');
+        $o[self::FIELD_WEBCAM_ALT]   = sanitize_text_field($in[self::FIELD_WEBCAM_ALT] ?? '');
 
         // schedule
-        $preset = (int) ($input[self::FIELD_FREQ_PRESET] ?? 1);
-        $out[self::FIELD_FREQ_PRESET] = in_array($preset, [1, 3, 6, 12, 24], true) ? $preset : 1;
+        $h = (int) ($in[self::FIELD_HOUR] ?? 0);
+        $m = (int) ($in[self::FIELD_MIN] ?? 0);
+        $o[self::FIELD_HOUR] = max(0, min(23, $h));
+        $o[self::FIELD_MIN]  = max(0, min(59, $m));
 
-        $out[self::FIELD_HOUR] = max(0, min(23, (int) ($input[self::FIELD_HOUR] ?? 0)));
-        $out[self::FIELD_MIN]  = max(0, min(59, (int) ($input[self::FIELD_MIN] ?? 0)));
+        $preset = (int) ($in[self::FIELD_FREQ_PRESET] ?? 1);
+        $o[self::FIELD_FREQ_PRESET] = in_array($preset, [1, 3, 6, 12, 24], true) ? $preset : 1;
 
         // formatting
-        $units_allowed = ['metric', 'imperial', 'both'];
-        $units         = $input[self::FIELD_UNITS] ?? 'both';
-        $out[self::FIELD_UNITS] = in_array($units, $units_allowed, true) ? $units : 'both';
+        $units = $in[self::FIELD_UNITS] ?? 'both';
+        $o[self::FIELD_UNITS] = in_array($units, ['metric', 'imperial', 'both'], true) ? $units : 'both';
 
-        $out[self::FIELD_PREFIX] = sanitize_text_field($input[self::FIELD_PREFIX] ?? 'Current Conditions:');
-        $out[self::FIELD_TAGS]   = sanitize_text_field($input[self::FIELD_TAGS] ?? '');
+        $o[self::FIELD_PREFIX] = sanitize_text_field($in[self::FIELD_PREFIX] ?? 'Current conditions:');
+        $o[self::FIELD_TAGS]   = sanitize_text_field($in[self::FIELD_TAGS] ?? '');
 
-        // content checkboxes (always array)
-        $out[self::FIELD_FIELDS] = [];
-        $fields_raw = $input[self::FIELD_FIELDS] ?? [];
-        if (is_array($fields_raw)) {
-            foreach ($fields_raw as $key => $on) {
+        // content boxes
+        $o[self::FIELD_FIELDS] = [];
+        if (isset($in[self::FIELD_FIELDS]) && is_array($in[self::FIELD_FIELDS])) {
+            foreach ($in[self::FIELD_FIELDS] as $key => $on) {
                 if ($on) {
-                    $out[self::FIELD_FIELDS][sanitize_key($key)] = 1;
+                    $o[self::FIELD_FIELDS][sanitize_key($key)] = 1;
                 }
             }
         }
-        // enforce at least temperature
-        if (empty($out[self::FIELD_FIELDS])) {
-            $out[self::FIELD_FIELDS]['temp'] = 1;
+        if (empty($o[self::FIELD_FIELDS])) { // always include temp
+            $o[self::FIELD_FIELDS]['temp'] = 1;
         }
 
-        /* re-schedule cron on save */
-        Cron::register($out);
+        // reschedule cron
+        Cron::register($o);
 
-        return $out;
+        return $o;
     }
 
-    /*--------------------------------------------------------------------*/
-    /* Render                                                             */
-    /*--------------------------------------------------------------------*/
-
+    /*--------------------------------------------------------------------
+	 * Render – adds preview + test-post pane
+	 *------------------------------------------------------------------*/
     public function render(): void
     { ?>
         <div class="wrap">
             <h1><?php esc_html_e('Bluesky Weather Poster Plus', 'bwpp'); ?></h1>
-            <form method="post" action="options.php">
+
+            <form id="bwpp-settings-form" method="post" action="options.php">
                 <?php
                 settings_fields('bwpp');
                 do_settings_sections(self::PAGE_SLUG);
-                submit_button();
                 ?>
+                <hr>
+                <p>
+                    <strong><?php esc_html_e('Live preview:', 'bwpp'); ?></strong>
+                    <span id="bwpp-spinner" class="spinner" style="float:none;margin:0 5px;"></span>
+                </p>
+                <pre id="bwpp-preview" style="background:#fafafa;padding:8px;border:1px solid #ddd;"></pre>
+                <p><?php esc_html_e('Characters:', 'bwpp'); ?>
+                    <span id="bwpp-char">0</span>/300
+                </p>
+
+                <p>
+                    <button type="button" class="button button-secondary" id="bwpp-test">
+                        <?php esc_html_e('Send Test Post', 'bwpp'); ?>
+                    </button>
+                    <span id="bwpp-result" style="margin-left:10px;font-weight:bold;"></span>
+                </p>
+
+                <?php submit_button(); ?>
             </form>
         </div>
 <?php }

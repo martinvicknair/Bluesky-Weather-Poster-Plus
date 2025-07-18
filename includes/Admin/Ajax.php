@@ -2,10 +2,8 @@
 
 /**
  * File: includes/Admin/Ajax.php
- * AJAX endpoints for the Settings screen.
- * - bwpp_char_count   → returns post length.
- * - bwpp_live_preview → returns formatted status preview.
- * Requires `manage_options` capability and a nonce.
+ * Legacy admin-AJAX endpoints (char count) **plus** REST routes for
+ * live preview & “Send Test Post”.
  *
  * @package BWPP\Admin
  */
@@ -14,62 +12,61 @@ namespace BWPP\Admin;
 
 defined('ABSPATH') || exit;
 
-use BWPP\Core\Formatter;
+use WP_REST_Request;
+use WP_Error;
+use BWPP\Core\{ClientrawParser, Formatter, BlueskyPoster};
 
 final class Ajax
 {
 
     public function __construct()
     {
-        add_action('wp_ajax_bwpp_char_count', [$this, 'char_count']);
-        add_action('wp_ajax_bwpp_live_preview', [$this, 'live_preview']);
+        // AJAX handlers could stay if you still use them elsewhere…
+        // …
+
+        /* REST routes for preview & test-post */
+        add_action('rest_api_init', function () {
+            register_rest_route('bwpp/v1', '/preview', [
+                'methods'             => 'POST',
+                'permission_callback' => fn() => current_user_can('manage_options'),
+                'callback'            => [$this, 'rest_preview'],
+            ]);
+            register_rest_route('bwpp/v1', '/testpost', [
+                'methods'             => 'POST',
+                'permission_callback' => fn() => current_user_can('manage_options'),
+                'callback'            => [$this, 'rest_testpost'],
+            ]);
+        });
     }
 
-    /** Character count endpoint. */
-    public function char_count(): void
+    /*------------------------------------------------------------------*/
+    /* REST callbacks                                                   */
+    /*------------------------------------------------------------------*/
+
+    public function rest_preview(WP_REST_Request $req)
     {
-        check_ajax_referer('bwpp_settings_nonce');
-        $this->require_cap();
-
-        $draft    = $_POST['draft'] ?? [];
-        $settings = array_merge(get_option(Settings::OPTION_KEY, []), $draft);
-
-        $formatted = Formatter::format_weather_output_with_facets($this->dummy_weather(), '', $settings);
-        wp_send_json_success(['length' => mb_strlen($formatted['text'])]);
-    }
-
-    /** Live preview endpoint. */
-    public function live_preview(): void
-    {
-        check_ajax_referer('bwpp_settings_nonce');
-        $this->require_cap();
-
-        $draft    = $_POST['draft'] ?? [];
-        $settings = array_merge(get_option(Settings::OPTION_KEY, []), $draft);
-
-        $formatted = Formatter::format_weather_output_with_facets($this->dummy_weather(), '', $settings);
-        wp_send_json_success(['text' => $formatted['text']]);
-    }
-
-    /* Helpers ----------------------------------------------------------------- */
-
-    private function dummy_weather(): array
-    {
+        parse_str($req->get_body(), $form);
+        $settings = Settings::instance()->sanitize($form['bwpp_settings'] ?? []);
+        $data  = ClientrawParser::fetch($settings['bwp_clientraw_url'] ?? '') ?: [];
+        $pay   = Formatter::build($data, $settings);
         return [
-            'temperature'    => 21.5,
-            'wind_direction' => 180,
-            'wind_speed'     => 5,
-            'humidity'       => 55,
-            'pressure'       => 1017,
-            'rain_today'     => 0.0,
-            'weather_desc'   => __('Clear', 'bwpp'),
+            'text'   => $pay['text'],
+            'length' => mb_strlen($pay['text']),
         ];
     }
 
-    private function require_cap(): void
+    public function rest_testpost(WP_REST_Request $req)
     {
-        if (! current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Forbidden', 'bwpp')], 403);
+        parse_str($req->get_body(), $form);
+        $settings = Settings::instance()->sanitize($form['bwpp_settings'] ?? []);
+        $data  = ClientrawParser::fetch($settings['bwp_clientraw_url'] ?? '') ?: [];
+        $pay   = Formatter::build($data, $settings);
+        $res   = BlueskyPoster::send($pay, $settings);
+
+        if (is_wp_error($res)) {
+            return new WP_Error('bwpp_fail', $res->get_error_message(), ['status' => 500]);
         }
+        return ['message' => __('Post successful!', 'bwpp')];
     }
 }
+// EOF
