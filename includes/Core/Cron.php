@@ -2,8 +2,7 @@
 
 /**
  * File: includes/Core/Cron.php
- * Scheduler – registers WP-Cron event based on the “frequency preset” and
- * first-run hour/minute dropdowns.
+ * Scheduler – registers WP-Cron job based on frequency preset & first run time.
  *
  * @package BWPP\Core
  */
@@ -15,68 +14,65 @@ defined('ABSPATH') || exit;
 final class Cron
 {
 
-    private const EVENT_HOOK = 'bwpp/post_weather_update';
+    public const EVENT_HOOK = 'bwpp/post_weather_update';
 
-    /*------------------------------------------------------------------*/
-    /* Public API                                                       */
-    /*------------------------------------------------------------------*/
+    /*--------------------------------------------------------------*/
+    /* Public API                                                   */
+    /*--------------------------------------------------------------*/
 
     /**
-     * (Re)register the cron job when settings save or on activation.
+     * (Re)register the cron event.
      *
-     * @param array|null $settings  Pass pre-sanitized settings when called
-     *                              from Settings::sanitize(); otherwise it
-     *                              fetches fresh from get_option().
+     * @param array|null $settings Sanitized settings array, or null to pull fresh.
      */
     public static function register(?array $settings = null): void
     {
 
         if (null === $settings) {
-            $settings = get_option(Settings::OPTION_KEY, []);
+            $settings = get_option(\BWPP\Admin\Settings::OPTION_KEY, []);
         }
 
-        // clear any prior job
+        // Clear any existing schedule.
         wp_clear_scheduled_hook(self::EVENT_HOOK);
 
-        // interval in hours (preset 1|3|6|12|24)
+        // ── Frequency preset (1 | 3 | 6 | 12 | 24 hours) ─────────────────
         $hours = (int) ($settings['bwp_freq_preset'] ?? 1);
         if (! in_array($hours, [1, 3, 6, 12, 24], true)) {
             $hours = 1;
         }
-        $interval = $hours * HOUR_IN_SECONDS;
+        $interval_slug = 'bwpp_custom_' . $hours . 'h';
 
-        // first run timestamp (today at chosen HH:MM or next future occurrence)
-        $h = (int) ($settings['bwp_first_post_hour'] ?? 0);
-        $m = (int) ($settings['bwp_first_post_minute'] ?? 0);
-
-        $first = strtotime(sprintf('%02d:%02d', $h, $m), current_time('timestamp'));
+        // ── First-run timestamp ──────────────────────────────────────────
+        $hour = (int) ($settings['bwp_first_post_hour'] ?? 0);
+        $min  = (int) ($settings['bwp_first_post_minute'] ?? 0);
+        $first = strtotime(sprintf('%02d:%02d', $hour, $min), current_time('timestamp'));
         if ($first <= time()) {
-            $first += $interval;
+            $first += $hours * HOUR_IN_SECONDS;
         }
 
-        wp_schedule_event($first, 'bwpp_custom_' . $hours . 'h', self::EVENT_HOOK);
+        wp_schedule_event($first, $interval_slug, self::EVENT_HOOK);
     }
 
     /**
-     * Hook callback – build and send the post.
+     * Execute the post.
      */
     public static function post_weather_update(): void
     {
 
-        $settings = get_option(Settings::OPTION_KEY, []);
+        $settings = get_option(\BWPP\Admin\Settings::OPTION_KEY, []);
         $data     = ClientrawParser::fetch($settings['bwp_clientraw_url'] ?? '');
 
         if (! $data) {
-            return; // optionally log failure
+            return; // Could log error here.
         }
 
         $payload = Formatter::build($data, $settings);
         BlueskyPoster::send($payload, $settings);
     }
 
-    /*------------------------------------------------------------------*/
-    /* Activation / interval filter                                     */
-    /*------------------------------------------------------------------*/
+    /*--------------------------------------------------------------*/
+    /* Custom intervals filter                                      */
+    /*--------------------------------------------------------------*/
 
     public static function add_custom_schedules(array $schedules): array
     {
@@ -89,3 +85,4 @@ final class Cron
         return $schedules;
     }
 }
+// EOF
