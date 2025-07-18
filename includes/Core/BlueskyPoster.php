@@ -1,14 +1,12 @@
 <?php
 
 /**
- * Lightweight wrapper around the Bluesky AT Protocol API.
+ * File: includes/Core/BlueskyPoster.php
+ * Low-level Bluesky API wrapper.
  *
- * Uses the official **com.atproto** XRPC endpoints:
- *  - /com.atproto.server.createSession  (login → jwt, refresh)
- *  - /com.atproto.repo.createRecord     (create a post record)
- *
- * The class abstracts authentication and token caching so callers just invoke
- * `BlueskyPoster::post_status( $text, $facets, $embed )`.
+ * • Logs in (and caches a token) for one **or two** accounts.
+ * • Accepts the fully-formatted payload from Formatter::build()
+ *   and creates the `app.bsky.feed.post` record.
  *
  * @package BWPP\Core
  */
@@ -22,162 +20,146 @@ use WP_Error;
 final class BlueskyPoster
 {
 
-    /* --------------------------------------------------------------------- */
-    /* –– CONSTANTS & SETTINGS KEYS ––                                       */
-    /* --------------------------------------------------------------------- */
-
-    private const DEFAULT_ATP_HOST = 'https://bsky.social';
-
-    private const TRANSIENT_TOKEN  = 'bwpp_bsky_token';
-
-    /* --------------------------------------------------------------------- */
-    /* –– PUBLIC API ––                                                      */
-    /* --------------------------------------------------------------------- */
+    /*------------------------------------------------------------------*/
+    /* Public – entry point                                             */
+    /*------------------------------------------------------------------*/
 
     /**
-     * Post a status to Bluesky.
+     * Post to the primary (and optional second) account.
      *
-     * @param string $text   The body text (max ~300 chars).
-     * @param array  $facets Optional facets array (mentions, links) as per AT
-     *                       Proto lexicon.
-     * @param array  $embed  Optional embed block (images, external links,...).
+     * @param array $payload ['text','facets','embed']
+     * @param array $settings bwpp_settings
      *
-     * @return true|WP_Error  Bool true on success, WP_Error on failure.
+     * @return true|WP_Error  true on success, WP_Error on first failure.
      */
-    public static function post_status(string $text, array $facets = [], array $embed = null)
+    public static function send(array $payload, array $settings)
     {
-        $text = wp_strip_all_tags(wp_unslash($text));
 
-        $token = self::get_token();
+        $accounts = [
+            [
+                'handle' => $settings['bwp_bsky_handle']  ?? '',
+                'app_pw' => $settings['bwp_bsky_app_pw']  ?? '',
+            ],
+        ];
+
+        if (! empty($settings['bwp_second_enable'])) {
+            $accounts[] = [
+                'handle' => $settings['bwp_second_handle'] ?? '',
+                'app_pw' => $settings['bwp_second_app_pw'] ?? '',
+            ];
+        }
+
+        foreach ($accounts as $acct) {
+            $err = self::post_single_account($acct['handle'], $acct['app_pw'], $payload);
+            if (is_wp_error($err)) {
+                return $err; // stop on first failure
+            }
+        }
+        return true;
+    }
+
+    /*------------------------------------------------------------------*/
+    /* Internal helpers                                                 */
+    /*------------------------------------------------------------------*/
+
+    /**
+     * Post once for a given handle/password.
+     *
+     * @return true|WP_Error
+     */
+    private static function post_single_account(string $handle, string $app_pw, array $payload)
+    {
+
+        if (! $handle || ! $app_pw) {
+            return new WP_Error('bwpp_missing_creds', __('Missing Bluesky credentials.', 'bwpp'));
+        }
+
+        $token = self::get_token($handle, $app_pw);
         if (is_wp_error($token)) {
             return $token;
         }
 
-        $settings = get_option('bwpp_settings', []);
-        $did      = $settings['bwp_bsky_did'] ?? null; // Creator DID – optional.
-        $repo     = $did ?: $settings['bwp_bsky_handle'] ?? '';
-        if (empty($repo)) {
-            return new WP_Error('bwpp_missing_repo', __('Bluesky handle is missing', 'bwpp'));
-        }
-
-        $host  = $settings['bwp_bsky_host'] ?? self::DEFAULT_ATP_HOST;
-        $route = '/xrpc/com.atproto.repo.createRecord';
-
-        // Build record JSON.
-        $record = [
-            '$type'   => 'app.bsky.feed.post',
-            'text'    => $text,
-            'createdAt' => gmdate('c'),
-        ];
-        if (! empty($facets)) {
-            $record['facets'] = $facets; // Assumed pre-validated.
-        }
-        if (! empty($embed)) {
-            $record['embed'] = $embed;
-        }
-
-        $payload = [
-            'repo'   => $repo,
+        $api = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
+        $body = [
+            'repo'       => $handle,
             'collection' => 'app.bsky.feed.post',
-            'record' => $record,
+            'record'     => array_merge(
+                $payload,
+                [
+                    '$type' => 'app.bsky.feed.post',
+                    'createdAt' => gmdate('c'),
+                ]
+            ),
         ];
 
-        $response = wp_remote_post($host . $route, [
-            'headers' => [
-                'Content-Type'  => 'application/json',
-                'Authorization' => 'Bearer ' . $token,
-            ],
-            'body'    => wp_json_encode($payload),
-            'timeout' => 15,
-        ]);
+        $response = wp_remote_post(
+            $api,
+            [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $token,
+                    'Content-Type'  => 'application/json',
+                ],
+                'timeout' => 15,
+                'body'    => wp_json_encode($body),
+            ]
+        );
 
         if (is_wp_error($response)) {
             return $response;
         }
-
-        $code = wp_remote_retrieve_response_code($response);
-        if ($code < 200 || $code >= 300) {
-            $body = wp_remote_retrieve_body($response);
-            return new WP_Error('bwpp_bsky_http', sprintf(__('Bluesky HTTP %d: %s', 'bwpp'), $code, $body));
+        if (wp_remote_retrieve_response_code($response) >= 300) {
+            return new WP_Error(
+                'bwpp_post_failed',
+                __('Bluesky post failed', 'bwpp'),
+                $response
+            );
         }
-
         return true;
     }
 
-    /* --------------------------------------------------------------------- */
-    /* –– TOKEN MANAGEMENT ––                                                */
-    /* --------------------------------------------------------------------- */
-
     /**
-     * Retrieve (and refresh if needed) the JWT access token.
+     * Get (or refresh) a JWT for this handle.
      *
-     * @return string|WP_Error  Access token or WP_Error on failure.
+     * @return string|WP_Error
      */
-    private static function get_token()
+    private static function get_token(string $handle, string $app_pw)
     {
-        $cached = get_transient(self::TRANSIENT_TOKEN);
-        if ($cached) {
-            return $cached;
+
+        $key   = 'bwpp_bsky_token_' . md5($handle);
+        $token = get_transient($key);
+        if ($token) {
+            return $token;
         }
 
-        $settings = get_option('bwpp_settings', []);
-        $handle   = $settings['bwp_bsky_handle']   ?? '';
-        $app_pw   = $settings['bwp_bsky_app_pw']   ?? '';
-        $host     = $settings['bwp_bsky_host']     ?? self::DEFAULT_ATP_HOST;
+        $resp = wp_remote_post(
+            'https://bsky.social/xrpc/com.atproto.server.createSession',
+            [
+                'timeout' => 15,
+                'headers' => ['Content-Type' => 'application/json'],
+                'body'    => wp_json_encode([
+                    'identifier' => $handle,
+                    'password'   => $app_pw,
+                ]),
+            ]
+        );
 
-        if (empty($handle) || empty($app_pw)) {
-            return new WP_Error('bwpp_missing_creds', __('Bluesky credentials incomplete', 'bwpp'));
+        if (is_wp_error($resp)) {
+            return $resp;
         }
 
-        $auth = self::request_token($handle, $app_pw, $host);
-        if (is_wp_error($auth)) {
-            return $auth;
+        $code = wp_remote_retrieve_response_code($resp);
+        if ($code >= 300) {
+            return new WP_Error('bwpp_login_fail', __('Bluesky login failed', 'bwpp'), $resp);
         }
 
-        // Cache for 30 minutes or whatever the API returns (expiresIn).
-        set_transient(self::TRANSIENT_TOKEN, $auth['accessJwt'], 30 * MINUTE_IN_SECONDS);
+        $data  = json_decode(wp_remote_retrieve_body($resp), true);
+        $token = $data['accessJwt'] ?? '';
 
-        return $auth['accessJwt'];
-    }
-
-    /**
-     * Perform login and return token array.
-     *
-     * @param string $identifier handle or email.
-     * @param string $password   Bluesky app password.
-     * @param string $host       AT Proto host.
-     *
-     * @return array|WP_Error
-     */
-    private static function request_token(string $identifier, string $password, string $host)
-    {
-        $route = '/xrpc/com.atproto.server.createSession';
-
-        $response = wp_remote_post($host . $route, [
-            'headers' => ['Content-Type' => 'application/json'],
-            'body'    => wp_json_encode([
-                'identifier' => $identifier,
-                'password'   => $password,
-            ]),
-            'timeout' => 15,
-        ]);
-
-        if (is_wp_error($response)) {
-            return $response;
+        if (! $token) {
+            return new WP_Error('bwpp_no_token', __('No token returned', 'bwpp'));
         }
 
-        $code = wp_remote_retrieve_response_code($response);
-        if (200 !== $code) {
-            return new WP_Error('bwpp_auth_http', sprintf(__('Auth HTTP %d', 'bwpp'), $code));
-        }
-
-        $body = wp_remote_retrieve_body($response);
-        $json = json_decode($body, true);
-        if (! $json || empty($json['accessJwt'])) {
-            return new WP_Error('bwpp_auth_json', __('Invalid auth response', 'bwpp'));
-        }
-
-        return $json;
+        set_transient($key, $token, 60 * 30); // 30 min
+        return $token;
     }
 }
-// EOF
